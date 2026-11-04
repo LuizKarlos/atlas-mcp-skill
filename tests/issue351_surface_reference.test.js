@@ -8,8 +8,8 @@ test("megabrain surface reference and package inclusion", () => {
   const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
 
   assert.ok(pkg.files && pkg.files.includes("megabrain-surface"), "package.json files includes megabrain-surface");
-  assert.ok(doc.includes("DEPRECATED"), "document contains DEPRECATED");
-  assert.ok(doc.includes("NO_EXECUTABLE_ROUTE"), "document contains NO_EXECUTABLE_ROUTE");
+  assert.ok(!doc.includes("megabrain call megabrain.recommend"), "document does not contain megabrain.recommend call");
+  assert.ok(!doc.includes("megabrain call megabrain.infer"), "document does not contain megabrain.infer call");
 
   const pattern = /megabrain call ([\w.]+) '([^']+)'/g;
   const calls = {};
@@ -21,9 +21,7 @@ test("megabrain surface reference and package inclusion", () => {
     "megabrain.health",
     "megabrain.inspect",
     "megabrain.inspect_work",
-    "megabrain.refine_prompt",
-    "megabrain.recommend",
-    "megabrain.infer"
+    "megabrain.refine_prompt"
   ];
 
   assert.deepEqual(Object.keys(calls).sort(), expectedTools.sort());
@@ -31,12 +29,10 @@ test("megabrain surface reference and package inclusion", () => {
   assert.deepEqual(Object.keys(calls["megabrain.inspect"]), ["mission_id"]);
   assert.deepEqual(Object.keys(calls["megabrain.inspect_work"]), ["work_id"]);
   assert.deepEqual(Object.keys(calls["megabrain.refine_prompt"]).sort(), ["context", "prompt", "risk_level"]);
-  assert.deepEqual(Object.keys(calls["megabrain.recommend"]), ["instruction"]);
-  assert.deepEqual(Object.keys(calls["megabrain.infer"]), ["instruction"]);
 });
 test("megabrain surface governance and operational tools part 2", () => {
   const fullDoc = fs.readFileSync("megabrain-surface/SKILL.md", "utf8");
-  const part2 = fullDoc.split("## Superfície de governança e operação — parte 2")[1].split("## Aliases underscore — 38/38")[0];
+  const part2 = fullDoc.split("## Superfície de governança e operação — parte 2")[1].split("## Aliases underscore — 36/36")[0];
   assert.ok(part2, "part 2 section exists");
 
   assert.match(part2, /sens[ií]vel/i, "mentions sensitive query rejection");
@@ -71,16 +67,16 @@ test("megabrain surface governance and operational tools part 2", () => {
 });
 test("megabrain surface underscore aliases part 3", () => {
   const fullDoc = fs.readFileSync("megabrain-surface/SKILL.md", "utf8");
-  const aliasSection = fullDoc.split("## Aliases underscore — 38/38")[1];
+  const aliasSection = fullDoc.split("## Aliases underscore — 36/36")[1];
   assert.ok(aliasSection, "alias section exists");
 
   const pairs = [...aliasSection.matchAll(/(megabrain\.([a-z0-9_]+))\s*->\s*(megabrain_([a-z0-9_]+))/g)];
-  assert.equal(pairs.length, 38, "must contain exactly 38 alias pairs");
+  assert.equal(pairs.length, 36, "must contain exactly 36 alias pairs");
 
   const canonicalSet = new Set(pairs.map((p) => p[1]));
   const aliasSet = new Set(pairs.map((p) => p[3]));
-  assert.equal(canonicalSet.size, 38, "38 unique canonical tools");
-  assert.equal(aliasSet.size, 38, "38 unique alias tools");
+  assert.equal(canonicalSet.size, 36, "36 unique canonical tools");
+  assert.equal(aliasSet.size, 36, "36 unique alias tools");
 
   for (const match of pairs) {
     const [, canonical, canonTool, alias] = match;
@@ -291,13 +287,13 @@ test("test_mcp_surface_coverage_closure", async () => {
     "megabrain.evaluate_execution_canary", "megabrain.execute_pipeline", "megabrain.export_audit_ledger",
     "megabrain.export_client_config", "megabrain.export_evidence_pack", "megabrain.get_mission_scorecard",
     "megabrain.get_parallel_waves", "megabrain.get_telemetry_report", "megabrain.grant_approval",
-    "megabrain.heal_dependency_graph", "megabrain.health", "megabrain.infer", "megabrain.inspect", "megabrain.inspect_work",
-    "megabrain.orchestrate", "megabrain.playwright_capture", "megabrain.readability_score", "megabrain.recommend",
+    "megabrain.heal_dependency_graph", "megabrain.health", "megabrain.inspect", "megabrain.inspect_work",
+    "megabrain.orchestrate", "megabrain.playwright_capture", "megabrain.readability_score",
     "megabrain.refine_prompt", "megabrain.resume_pipeline", "megabrain.rollback_checkpoint",
     "megabrain.slice_ast_context", "megabrain.summarize_visual_tdd", "megabrain.synthesize_backend_contract",
     "megabrain.synthesize_subtask", "megabrain.time_travel_replay", "megabrain.verify_subtask", "megabrain.voice_calibrate"
   ];
-  assert.equal(CANONICAL.length, 38, "38 tools no manifest canonical");
+  assert.equal(CANONICAL.length, 36, "36 tools no manifest canonical");
 
   const files = fs.readdirSync(".", { recursive: true }).filter((f) => f.endsWith(".md") && !f.includes("node_modules"));
   const regex = /megabrain call (megabrain[._][a-z0-9_]+) '([^']+)'/g;
@@ -316,7 +312,7 @@ test("test_mcp_surface_coverage_closure", async () => {
   for (const tool of CANONICAL) {
     assert.ok(found.has(tool), "tool ausente nos docs: " + tool);
   }
-  assert.equal(found.size, 38, "38/38 presentes");
+  assert.equal(found.size, 36, "36/36 presentes");
 
   const kPath = process.env.MEGABRAIN_KERNEL_SOURCE || "/srv/megabrain-dev/repository/runtime/mcp_server.py";
   if (fs.existsSync(kPath)) {

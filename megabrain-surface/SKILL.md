@@ -34,19 +34,6 @@ Limite: Refinamento de contrato e validação antes da execução.
 megabrain call megabrain.refine_prompt '{"prompt":"Build feature","context":"Context repo","risk_level":"MEDIUM"}'
 ```
 
-## megabrain.recommend
-Assinatura: `megabrain.recommend(instruction)`.
-Limite: kernel-only -> NO_EXECUTABLE_ROUTE + execution_ready:false.
-```bash
-megabrain call megabrain.recommend '{"instruction":"Analyze repository structure"}'
-```
-
-## megabrain.infer
-Assinatura: `megabrain.infer(instruction)`.
-Limite: DEPRECATED / kernel-only, fail-closed sob isolamento soberano.
-```bash
-megabrain call megabrain.infer '{"instruction":"Direct inference call"}'
-```
 ## Superfície de governança e operação — parte 2
 
 ### megabrain.grant_approval
@@ -91,7 +78,7 @@ Limite: Rejeita query sensível e userinfo no endpoint; nunca incluir token ou c
 megabrain call megabrain.export_client_config '{"client_type":"cursor","tunnel_url":"https://mcp.atlascommand.dev/mcp"}'
 ```
 
-## Aliases underscore — 38/38
+## Aliases underscore — 36/36
 
 Regra 1:1: `megabrain.<tool>` ↔ `megabrain_<tool>`; ambos aceitos pelo CLI; alias não é tool nova.
 Gramática do CLI: aceita `megabrain.health` e `megabrain_health`; rejeita `megabrain.`, `megabrain..health` e string vazia; argumentos devem ser JSON objeto (array/null rejeitados).
@@ -122,13 +109,11 @@ Equivalente a `megabrain call megabrain.health '{}'`.
 - megabrain.grant_approval -> megabrain_grant_approval
 - megabrain.heal_dependency_graph -> megabrain_heal_dependency_graph
 - megabrain.health -> megabrain_health
-- megabrain.infer -> megabrain_infer
 - megabrain.inspect -> megabrain_inspect
 - megabrain.inspect_work -> megabrain_inspect_work
 - megabrain.orchestrate -> megabrain_orchestrate
 - megabrain.playwright_capture -> megabrain_playwright_capture
 - megabrain.readability_score -> megabrain_readability_score
-- megabrain.recommend -> megabrain_recommend
 - megabrain.refine_prompt -> megabrain_refine_prompt
 - megabrain.resume_pipeline -> megabrain_resume_pipeline
 - megabrain.rollback_checkpoint -> megabrain_rollback_checkpoint
