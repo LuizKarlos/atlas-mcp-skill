@@ -11,7 +11,8 @@
   },
   "scripts": {
     "test": "node --test",
-    "lint": "node --check bin/megabrain.js"
+    "lint": "node --check bin/megabrain.js",
+    "release:pack": "node scripts/package_release.js"
   },
   "keywords": [
     "megabrain",
