@@ -14,13 +14,15 @@ Ecosystem and tooling for the MegaBrain autonomous orchestration framework and M
 
 ### Installation
 
-Public registry install is not claimed. Use a local preview tarball after packing this tree, then verify the binary version.
+Publicação pública ainda não existe e não foi executada (requer Node >=18). Prepare o artefato beta verificável:
 
 ```bash
-# Preview only. Does not prove public registry availability.
-npm pack
-npm install -g ./megabrain-cli-3.2.0.tgz
+npm run release:pack
+(cd dist && sha256sum -c megabrain-cli-3.2.0.tgz.sha256)
+npm install -g dist/megabrain-cli-3.2.0.tgz
+export MEGABRAIN_ENDPOINT=https://mcp.atlascommand.dev/mcp
 megabrain --version
+# Rollback por reinstalar versão anterior
 ```
 
 ### Usage
