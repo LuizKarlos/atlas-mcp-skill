@@ -226,6 +226,8 @@ Nota kernel-only: contratos de governança; zero providers/models; role não exe
 - `writer` -> `creative_copywriter`
 
 ### Exemplos JSON
+A indicação de role ocorre via `metadata.recommended_role` na decomposição. O despacho consome `work_id` e `task_id` da tarefa registrada, sem parâmetro `role` avulso no tool.
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -234,7 +236,7 @@ Nota kernel-only: contratos de governança; zero providers/models; role não exe
   "params": {
     "name": "megabrain.decompose",
     "arguments": {
-      "task": "Synthesize plan",
+      "prompt": "Synthesize plan",
       "metadata": { "recommended_role": "mission_compiler" }
     }
   }
@@ -249,8 +251,8 @@ Nota kernel-only: contratos de governança; zero providers/models; role não exe
   "params": {
     "name": "megabrain.dispatch_subtask",
     "arguments": {
-      "subtask_id": "st-1",
-      "role": "implementer"
+      "work_id": "work-123",
+      "task_id": "st-1"
     }
   }
 }
@@ -271,8 +273,8 @@ Três transportes suportados e governança estrita de autenticação:
   - `Mcp-Name: <name>` (em `tools/call`)
 - Objeto `params._meta` obrigatório:
   - `io.modelcontextprotocol/protocolVersion`: `"2026-07-28"`
-  - `clientCapabilities`: objeto de capacidades do cliente
-  - `clientInfo`: objeto de identificação do cliente
+  - `io.modelcontextprotocol/clientCapabilities`: objeto de capacidades do cliente
+  - `io.modelcontextprotocol/clientInfo`: objeto de identificação do cliente
 
 ### 2. stdio async
 - Entrypoint: `MegaBrainNativeMCPServer.run_stdio_async` para harness local.
@@ -290,10 +292,10 @@ Três transportes suportados e governança estrita de autenticação:
 curl -X POST https://mcp.atlascommand.dev/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
-  -H "Authorization: Bearer \${MEGABRAIN_TOKEN}" \
+  -H "Authorization: Bearer ${MEGABRAIN_TOKEN}" \
   -H "MCP-Protocol-Version: 2026-07-28" \
   -H "Mcp-Method: tools/list" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","clientCapabilities":{},"clientInfo":{"name":"megabrain-cli","version":"3.2.0"}}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"megabrain-cli","version":"3.2.0"}}}}'
 ```
 
 ## Observabilidade

@@ -177,6 +177,10 @@ test("megabrain surface roles part 6", () => {
   assert.strictEqual(jsons.length, 2, "must parse exactly 2 JSON examples");
   assert.ok(jsons.some((j) => j.params?.name === "megabrain.decompose" && j.params?.arguments?.metadata?.recommended_role));
   assert.ok(jsons.some((j) => j.params?.name === "megabrain.dispatch_subtask"));
+  const decArgs = jsons.find((j) => j.params?.name === "megabrain.decompose")?.params?.arguments;
+  assert.ok(decArgs?.prompt && !("task" in decArgs), "decompose has prompt and lacks task");
+  const dispArgs = jsons.find((j) => j.params?.name === "megabrain.dispatch_subtask")?.params?.arguments;
+  assert.ok(dispArgs?.work_id && dispArgs?.task_id && !("subtask_id" in dispArgs), "dispatch_subtask has work_id and task_id and lacks subtask_id");
   assert.match(section, /zero providers\/models/);
   assert.match(section, /n[ãa]o executa infer[êe]ncia/);
 });
@@ -207,6 +211,14 @@ test("megabrain surface transports and authentication part 7", () => {
   const payload = JSON.parse(match[1]);
   assert.strictEqual(payload.method, "tools/list");
   assert.strictEqual(payload.params?._meta?.["io.modelcontextprotocol/protocolVersion"], "2026-07-28");
+  assert.ok(payload.params?._meta?.["io.modelcontextprotocol/clientCapabilities"]);
+  assert.ok(payload.params?._meta?.["io.modelcontextprotocol/clientInfo"]);
+  assert.strictEqual(payload.params?._meta?.clientCapabilities, undefined);
+  assert.strictEqual(payload.params?._meta?.clientInfo, undefined);
+  const curlBlock = sec.match(/```bash\n([\s\S]*?)```/)?.[1] || "";
+  assert.ok(curlBlock.includes("Bearer ${MEGABRAIN_TOKEN}"));
+  assert.ok(!curlBlock.includes("MEG...KEN"));
+  assert.ok(!curlBlock.includes("\\${"));
 });
 test("megabrain surface observability part 8", () => {
   const doc = fs.readFileSync("megabrain-surface/SKILL.md", "utf8");

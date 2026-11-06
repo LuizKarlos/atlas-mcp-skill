@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { checkHealth } from "../client.js";
+import { checkHealth, listTools } from "../client.js";
 import { getEndpoint, getToken, validateEndpoint } from "../config.js";
 
 const SKILLS = [
@@ -11,7 +11,8 @@ const SKILLS = [
   "megabrain-review",
   "megabrain-audit",
   "megabrain-context",
-  "megabrain-ui"
+  "megabrain-ui",
+  "megabrain-surface"
 ];
 
 // ponytail: synchronous copy and unary probe; upgrade to async workers when syncing >50 skills
@@ -44,7 +45,8 @@ export async function run({ positionals = [], flags = {} } = {}) {
     harnesses.push(".cursor");
     const rulesDir = path.join(cursorDir, "rules");
     fs.mkdirSync(rulesDir, { recursive: true });
-    fs.writeFileSync(path.join(rulesDir, "megabrain.mdc"), "# MegaBrain Rules\nUse MegaBrain MCP tools.\n");
+    const rulePath = path.join(rulesDir, "megabrain.mdc");
+    if (!fs.existsSync(rulePath)) fs.writeFileSync(rulePath, "# MegaBrain Rules\nUse MegaBrain MCP tools.\n");
   }
   if (fs.existsSync(path.join(process.cwd(), ".vscode"))) harnesses.push(".vscode");
   if (fs.existsSync(path.join(os.homedir(), ".hermes"))) harnesses.push(".hermes");
@@ -63,19 +65,21 @@ export async function run({ positionals = [], flags = {} } = {}) {
   const nodeOk = nodeMajor >= 18;
 
   function healthReady(health) {
-    if (!health || typeof health !== "object") return false;
-    const s = health.status != null ? String(health.status).toUpperCase() : "";
-    if (s === "DEGRADED" || s === "NOT_READY") return false;
-    if (health.ready === false || health.kernel_ready === false || health.isError === true) return false;
-    return true;
+    const rawStatus = typeof health?.status === "string" ? health.status.toUpperCase() : "";
+    return Boolean(health) && !health.isError && health.ready !== false && health.kernel_ready !== false && health.ok !== false &&
+      (["READY", "HEALTHY", "OK"].includes(rawStatus) || (rawStatus === "" && (health.ready === true || health.ok === true)));
   }
 
+  const explicitToken = flags?.token || process.env.MEGABRAIN_TOKEN;
   let connected = false;
   const start = Date.now();
   try {
-    const health = await checkHealth({ endpoint, token, signal: AbortSignal.timeout(3000) });
+    const health = await checkHealth({ endpoint, token: explicitToken, signal: AbortSignal.timeout(3000) });
     connected = healthReady(health);
-  } catch {}
+    if (connected && explicitToken) await listTools({ endpoint, token: explicitToken, signal: AbortSignal.timeout(3000) });
+  } catch {
+    connected = false;
+  }
   const latencyMs = Date.now() - start;
 
   const report = {

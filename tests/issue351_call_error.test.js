@@ -51,6 +51,13 @@ test("CALL_BUSINESS_FAILURE_MATRIX", async () => {
     { structuredContent: { error_code: "INVALID_ARGUMENT" } },
     { content: [{ type: "text", text: JSON.stringify({ status: "error" }) }] },
     { content: [{ type: "text", text: JSON.stringify({ error_code: "NO_EXECUTABLE_ROUTE" }) }] },
+    { status: "FAILED" },
+    { structuredContent: { status: "NOT_EXECUTED" } },
+    { content: [{ type: "text", text: JSON.stringify({ status: "BLOCKED" }) }] },
+    { structuredContent: { status: "MALFORMED_RESULT" } },
+    { content: [{ type: "text", text: JSON.stringify({ status: "INSUFFICIENT_EVIDENCE" }) }] },
+    { structuredContent: { status: "SKIPPED", exit_code: 2 } },
+    { content: [{ type: "text", text: JSON.stringify({ status: "SKIPPED", error_code: "ERR" }) }] },
   ];
   for (const r of failCases) {
     const { exitCode } = await runWith(r);
@@ -59,6 +66,9 @@ test("CALL_BUSINESS_FAILURE_MATRIX", async () => {
   const okCases = [
     { content: [{ type: "text", text: "texto nao json" }], status: "ok" },
     { content: [{ type: "text", text: JSON.stringify({ status: "ok" }) }], structuredContent: { status: "ok" } },
+    { status: "SKIPPED", reason: "cached", exit_code: 0 },
+    { structuredContent: { status: "SKIPPED", skip_record: { id: 1 } } },
+    { content: [{ type: "text", text: JSON.stringify({ status: "SKIPPED", error: { code: 500 } }) }] },
   ];
   for (const r of okCases) {
     const { exitCode } = await runWith(r);

@@ -55,14 +55,21 @@ export function validateEndpoint(endpoint) {
 export function saveConfig(data) {
   const dir = getConfigDir();
   const file = getConfigFile();
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  fs.chmodSync(dir, 0o700);
   const current = loadConfig();
   const merged = { ...current, ...data };
   if (merged.endpoint !== undefined && merged.endpoint !== null) {
     merged.endpoint = validateEndpoint(merged.endpoint);
   }
-  fs.writeFileSync(file, JSON.stringify(merged, null, 2) + "\n", { mode: 0o600 });
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  fs.chmodSync(dir, 0o700);
+  const tmp = `${file}.tmp.${process.pid}.${Date.now()}`;
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(merged, null, 2) + "\n", { mode: 0o600 });
+    fs.chmodSync(tmp, 0o600);
+    fs.renameSync(tmp, file);
+  } finally {
+    try { fs.rmSync(tmp, { force: true }); } catch {}
+  }
   fs.chmodSync(file, 0o600);
 }
 

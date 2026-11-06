@@ -64,6 +64,14 @@ test("cli status health classification and exit codes", async () => {
     const d4 = JSON.parse(c4.stdout);
     assert.strictEqual(c4.code, 1);
     assert.strictEqual(d4.status, "error");
+
+    // 5. HEALTHY + kernel_ready=false
+    handler = (_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ status: "HEALTHY", kernel_ready: false }));
+    };
+    const c5 = await runCli(["--json"]);
+    assert.strictEqual(c5.code, 1);
   } finally {
     server.close();
   }

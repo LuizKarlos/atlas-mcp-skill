@@ -23,4 +23,4 @@ megabrain call megabrain.get_parallel_waves '{"work_id":"work_local_1"}'
 megabrain call megabrain.execute_pipeline '{"work_id":"work_local_1","test_commands":{"t1":{"command":"node --test tests/issue351_docs_pipeline.test.js"}}}'
 ```
 
-`execute_pipeline` exige `test_commands` verificados pelo harness. Sem `wave_index`. Sem provider.
+`execute_pipeline` exige `test_commands` verificados pelo harness: o harness executa o comando e envia status GREEN com exit_code: 0 apenas após prova real (não fabricar GREEN; negativos são NOT_EXECUTED ou MALFORMED_RESULT). `work_id` e `task_id` vêm de decompose/dispatch. Sem `wave_index`. Sem provider.

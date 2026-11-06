@@ -36,3 +36,7 @@ test("CALL_VALIDATE_TOOL_NAME: matrix of accepted and rejected tool names", () =
     assert.throws(() => validateToolName(bad), /Tool name must be megabrain\.<tool>/);
   }
 });
+
+test("CALL_REJECT_EMPTY_STRING: explicit empty string arguments are rejected before the network call", () => {
+  assertRejected(runCli(["call", "megabrain.health", ""]), /Invalid JSON arguments/);
+});
