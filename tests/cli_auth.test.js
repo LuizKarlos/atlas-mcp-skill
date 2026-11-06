@@ -299,7 +299,7 @@ test('4. Codigos de saida de erro quando argumentos invalidos sao passados', asy
 
   const r4 = await runCliAsync(['status', '--endpoint', 'not_a_valid_url']);
   assert.equal(r4.status, 1, 'status with invalid endpoint URL should exit with code 1');
-  assert.match(r4.stderr, /Invalid URL/);
+  assert.match(r4.stderr, /Invalid URL|Endpoint invalido/);
 });
 
 test('5. Suporte nativo a .env local no CLI sem dependencias externas', async () => {
@@ -339,5 +339,25 @@ test('6. setup --write-mcp grava megabrain.mcp.json sem token plaintext', async 
     assert.ok(!r1.stdout.includes('sec1') && !r2.stdout.includes('sec1') && !JSON.stringify(data).includes('sec1'));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('7. login com endpoint invalido falha e preserva credentials.json inalterado', async () => {
+  const tmpDir = path.join(os.tmpdir(), `mb-login-atomic-${Date.now()}`);
+  const cDir = path.join(tmpDir, 'megabrain');
+  const credFile = path.join(cDir, 'credentials.json');
+  fs.mkdirSync(cDir, { recursive: true, mode: 0o700 });
+  const initialContent = JSON.stringify({ token: 'old-token', endpoint: 'https://mcp.atlascommand.dev/mcp' }, null, 2) + '\n';
+  fs.writeFileSync(credFile, initialContent, { mode: 0o600 });
+  try {
+    const res = await runCliAsync(['login', '--endpoint', 'not_a_valid_url'], {
+      XDG_CONFIG_HOME: tmpDir,
+      MEGABRAIN_TOKEN: 'new-token',
+    });
+    assert.equal(res.status, 1);
+    assert.ok(!res.stderr.includes('new-token'));
+    assert.equal(fs.readFileSync(credFile, 'utf8'), initialContent);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });

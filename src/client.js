@@ -82,7 +82,7 @@ export async function listTools(options = {}) {
 }
 
 export async function checkHealth(options = {}) {
-  const endpoint = options.endpoint || getEndpoint();
+  const endpoint = validateEndpoint(options.endpoint || getEndpoint());
   const origin = new URL(endpoint).origin;
   try {
     const res = await fetch(`${origin}/health`, { signal: options.signal });

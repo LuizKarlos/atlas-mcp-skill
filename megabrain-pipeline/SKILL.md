@@ -33,7 +33,7 @@ megabrain call megabrain.decompose '{"prompt":"Analyze local DAG","tasks":[{"id"
 # 2. Waves a partir do work_id já criado. Mock/parser não é prova live.
 megabrain call megabrain.get_parallel_waves '{"work_id":"work_local_1"}'
 
-# 3. execute_pipeline exige test_commands verificados pelo harness. Sem índice de wave. Sem provider.
+# 3. execute_pipeline exige test_commands: o harness executa o comando e envia status GREEN com exit_code: 0 apenas após prova real (não fabricar GREEN; negativos são NOT_EXECUTED ou MALFORMED_RESULT). work_id e task_id vêm de decompose/dispatch. Sem índice de wave. Sem provider.
 megabrain call megabrain.execute_pipeline '{"work_id":"work_local_1","test_commands":{"t1":{"command":"node --test tests/issue351_docs_pipeline.test.js"}},"auto_heal":false}'
 
 # 4. heal usa tasks/catálogo. Cura reconhecida e estado terminal. Sem execução de provider.

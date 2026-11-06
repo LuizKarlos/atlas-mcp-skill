@@ -11,17 +11,18 @@ export function validateToolName(name) {
   return name;
 }
 
+const FAILS = new Set(["ERROR", "FAILED", "NOT_EXECUTED", "BLOCKED", "MALFORMED_RESULT", "INSUFFICIENT_EVIDENCE"]);
 function hasErr(o) {
-  return Boolean(
-    o && typeof o === "object" && !Array.isArray(o) &&
-    (String(o.status).toLowerCase() === "error" || (typeof o.error_code === "string" && o.error_code.length > 0))
-  );
+  if (!o || typeof o !== "object" || Array.isArray(o)) return false;
+  const s = typeof o.status === "string" ? o.status.toUpperCase() : "";
+  const err = typeof o.error_code === "string" && o.error_code.length > 0;
+  return s === "SKIPPED" ? ((typeof o.exit_code === "number" && o.exit_code !== 0) || err) : (FAILS.has(s) || err);
 }
 
 export function isBusinessFailure(result) {
   try {
     if (!result || typeof result !== "object" || Array.isArray(result)) return false;
-    if (result.isError === true || String(result.status).toLowerCase() === "error") return true;
+    if (result.isError === true || hasErr(result)) return true;
     if (hasErr(result.structuredContent)) return true;
     if (Array.isArray(result.content)) {
       for (const item of result.content) {
@@ -45,7 +46,7 @@ export async function run({ positionals = [], flags = {}, callToolFn = callTool 
   validateToolName(name);
   if (pos.length > 2) throw new Error("Too many arguments. Usage: megabrain call <tool> [args-json]");
   let args = {};
-  if (rawArgs) {
+  if (rawArgs !== undefined) {
     try {
       args = JSON.parse(rawArgs);
     } catch (e) {

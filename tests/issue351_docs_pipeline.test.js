@@ -63,3 +63,22 @@ test('DOCS_PIPE_QUALIFIED', () => {
   assert.match(heal, /synthesize_subtask/);
   assert.ok(calls['megabrain.execute_pipeline'] && calls['megabrain.get_parallel_waves']);
 });
+test('DOCS_PIPE_VERIFY', () => {
+  assert.match(skill, /GREEN/);
+  assert.match(skill, /exit_code:\s*0/);
+  assert.match(skill, /Sem provider/);
+  assert.match(skill, /MALFORMED_RESULT/);
+  assert.match(skill, /NOT_EXECUTED/);
+  assert.match(waves, /GREEN/);
+  assert.match(waves, /exit_code:\s*0/);
+  assert.match(waves, /Sem provider/);
+  assert.match(waves, /MALFORMED_RESULT/);
+  assert.match(waves, /NOT_EXECUTED/);
+  assert.match(docs, /GREEN/);
+  assert.match(docs, /exit_code:\s*0/);
+  assert.match(docs, /Sem provider/);
+  assert.match(docs, /MALFORMED_RESULT/);
+  assert.match(docs, /NOT_EXECUTED/);
+  assert.doesNotMatch(skill, /(?:verification|test)_result["']?\s*:\s*["']/);
+  assert.doesNotMatch(docs, /(?:verification|test)_result["']?\s*:\s*["']/);
+});

@@ -84,6 +84,7 @@ test("SETUP_READINESS_DEGRADED_EXIT", async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const { port } = server.address();
   const cases = [
+    { status: "ERROR" },
     { status: "DEGRADED" },
     { status: "NOT_READY" },
     { status: "READY", ready: false },
