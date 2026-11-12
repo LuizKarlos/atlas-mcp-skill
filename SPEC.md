@@ -1,6 +1,6 @@
 # Companion Atlas v1 — contrato
 
-Este pacote ensina a LLM a usar o servidor Atlas. Não é o servidor.
+Este pacote ensina a LLM a usar o servidor Atlas ([atlascommand.dev](https://atlascommand.dev)). Não é o servidor.
 
 ## Superfície
 
