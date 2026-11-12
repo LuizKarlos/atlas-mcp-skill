@@ -12,7 +12,7 @@ async function runWith(result) {
   process.exitCode = undefined;
   let failure = null;
   try {
-    await run({ positionals: ["megabrain.test", "{}"], flags: { json: true }, callToolFn: async () => result });
+    await run({ positionals: ["atlas.health", "{}"], flags: { json: true }, callToolFn: async () => result });
   } catch (e) {
     failure = e;
   } finally {

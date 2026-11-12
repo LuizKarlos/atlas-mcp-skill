@@ -33,17 +33,17 @@ function mockFetch(capture, resHandler) {
 test("TR_HEADERS_HEALTH: tools/call sends contract headers and protocol _meta", async () => {
   const capture = mockFetch({});
 
-  await callTool("megabrain.health", {}, { endpoint: ENDPOINT, token: TOKEN });
+  await callTool("atlas.health", {}, { endpoint: ENDPOINT, token: TOKEN });
 
   const { headers } = capture.init;
   assert.equal(headers["MCP-Protocol-Version"], PROTOCOL_VERSION);
   assert.equal(headers["Mcp-Method"], "tools/call");
-  assert.equal(headers["Mcp-Name"], "megabrain.health");
+  assert.equal(headers["Mcp-Name"], "atlas.health");
   assert.equal(headers["Authorization"], `Bearer ${TOKEN}`);
 
   const body = JSON.parse(capture.init.body);
   assert.equal(body.method, "tools/call");
-  assert.equal(body.params.name, "megabrain.health");
+  assert.equal(body.params.name, "atlas.health");
   assert.equal(body.params._meta["io.modelcontextprotocol/protocolVersion"], PROTOCOL_VERSION);
   assert.equal(typeof body.params._meta["io.modelcontextprotocol/clientCapabilities"], "object");
   assert.ok(body.params._meta["io.modelcontextprotocol/clientCapabilities"] !== null);
@@ -69,7 +69,7 @@ test("TR_HEADERS_LIST: tools/list sends contract headers without Mcp-Name", asyn
 test("TR_NO_TOKEN_IN_URL: bearer token never reaches the URL", async () => {
   const capture = mockFetch({});
 
-  await callTool("megabrain.health", {}, { endpoint: ENDPOINT, token: TOKEN });
+  await callTool("atlas.health", {}, { endpoint: ENDPOINT, token: TOKEN });
 
   assert.equal(capture.url, ENDPOINT);
   assert.ok(!capture.url.includes(TOKEN));
@@ -91,7 +91,7 @@ test("TR_SSE_CORRELATED: ignores progress and foreign id, matches frame with CRL
     ].join("\r\n\r\n")
   }));
 
-  const res = await callTool("megabrain.health", {}, { endpoint: ENDPOINT, token: TOKEN });
+  const res = await callTool("atlas.health", {}, { endpoint: ENDPOINT, token: TOKEN });
   assert.deepEqual(res, { toolResult: "ok" });
 });
 
@@ -104,7 +104,7 @@ test("TR_SSE_NO_CORRELATED: fails explicitly when no correlated frame exists", a
   }));
 
   await assert.rejects(
-    async () => callTool("megabrain.health", {}, { endpoint: ENDPOINT, token: TOKEN }),
+    async () => callTool("atlas.health", {}, { endpoint: ENDPOINT, token: TOKEN }),
     /Empty or invalid response/
   );
 });
@@ -118,7 +118,7 @@ test("TR_JSON_WRONG_ID: fails explicitly when simple JSON has mismatched id", as
   }));
 
   await assert.rejects(
-    async () => callTool("megabrain.health", {}, { endpoint: ENDPOINT, token: TOKEN }),
+    async () => callTool("atlas.health", {}, { endpoint: ENDPOINT, token: TOKEN }),
     /Empty or invalid response/
   );
 });
@@ -132,7 +132,7 @@ test("TR_ERROR_PRESERVED: preserves RPC error from correlated response", async (
   }));
 
   await assert.rejects(
-    async () => callTool("megabrain.health", {}, { endpoint: ENDPOINT, token: TOKEN }),
+    async () => callTool("atlas.health", {}, { endpoint: ENDPOINT, token: TOKEN }),
     /Method not found/
   );
 });

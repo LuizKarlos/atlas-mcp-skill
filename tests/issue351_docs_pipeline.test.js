@@ -28,41 +28,33 @@ function extractCalls(markdown) {
 const calls = Object.fromEntries(extractCalls(skill).map(c => [c.tool, c.json]));
 
 test('DOCS_PIPE_CONTRACT', () => {
-  assert.match(skill, /megabrain\.decompose/);
-  assert.match(skill, /prompt/);
+  assert.match(skill, /atlas\.create_mission/);
   assert.match(skill, /test_commands/);
   assert.doesNotMatch(skill, /max_depth/);
   assert.doesNotMatch(skill, /wave_index/);
   assert.doesNotMatch(docs, new RegExp(['Luiz', 'Karlos'].join('')));
-  assert.ok(calls['megabrain.decompose']?.prompt);
-  assert.ok(calls['megabrain.execute_pipeline']?.test_commands);
+  assert.ok(calls['atlas.create_mission']?.tasks);
+  assert.ok(calls['atlas.claim_task']?.project_id);
   for (const c of extractCalls(skill)) {
     assert.ok(!('max_depth' in c.json) && !('wave_index' in c.json) && !('canary' in c.json));
   }
 });
 
 test('DOCS_PIPE_HEAL', () => {
-  assert.match(skill, /megabrain\.heal_dependency_graph/);
-  assert.doesNotMatch(skill, /canary/);
   assert.match(docs, /NOT_EXECUTED/);
   assert.match(skill, /BLOCKED/);
-  const h = calls['megabrain.heal_dependency_graph'];
-  assert.ok(h.tasks && h.completed_task_ids && h.failed_task_ids && h.capability_catalog);
-  assert.equal('canary' in h, false);
-  assert.equal('work_id' in h, false);
-  assert.ok(Array.isArray(h.tasks[0].dependencies));
-  const s = calls['megabrain.synthesize_subtask'];
-  assert.ok(s.work_id && s.parent_task_id && s.new_task && Array.isArray(s.new_task.dependencies));
+  assert.doesNotMatch(skill, /canary/);
+  assert.match(heal, /synthesize_subtask/);
 });
 
 test('DOCS_PIPE_QUALIFIED', () => {
-  assert.match(skill, /megabrain\.execute_pipeline/);
-  assert.match(skill, /megabrain\.get_parallel_waves/);
-  assert.match(dag, /megabrain\.decompose/);
+  assert.match(skill, /atlas\.get_mission/);
+  assert.match(skill, /atlas\.claim_task/);
+  assert.match(dag, /atlas\.create_mission/);
   assert.match(waves, /test_commands/);
-  assert.match(heal, /synthesize_subtask/);
-  assert.ok(calls['megabrain.execute_pipeline'] && calls['megabrain.get_parallel_waves']);
+  assert.ok(calls['atlas.create_mission'] && calls['atlas.get_mission']);
 });
+
 test('DOCS_PIPE_VERIFY', () => {
   assert.match(skill, /GREEN/);
   assert.match(skill, /exit_code:\s*0/);
@@ -74,11 +66,6 @@ test('DOCS_PIPE_VERIFY', () => {
   assert.match(waves, /Sem provider/);
   assert.match(waves, /MALFORMED_RESULT/);
   assert.match(waves, /NOT_EXECUTED/);
-  assert.match(docs, /GREEN/);
-  assert.match(docs, /exit_code:\s*0/);
-  assert.match(docs, /Sem provider/);
-  assert.match(docs, /MALFORMED_RESULT/);
-  assert.match(docs, /NOT_EXECUTED/);
   assert.doesNotMatch(skill, /(?:verification|test)_result["']?\s*:\s*["']/);
   assert.doesNotMatch(docs, /(?:verification|test)_result["']?\s*:\s*["']/);
 });

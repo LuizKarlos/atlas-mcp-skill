@@ -3,15 +3,15 @@ import { callTool } from "../client.js";
 // ponytail: single tool caller; upgrade to multi-step agent pipeline when needed
 export function validateToolName(name) {
   if (typeof name !== "string" || !name || name.includes("..") || name.endsWith(".")) {
-    throw new Error("Tool name must be megabrain.<tool>");
+    throw new Error("Tool name must be atlas.<tool>");
   }
-  if (!/^megabrain[._][a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)*$/.test(name)) {
-    throw new Error("Tool name must be megabrain.<tool>");
+  if (!/^atlas[._][a-zA-Z0-9_]+$/.test(name)) {
+    throw new Error("Tool name must be atlas.<tool>");
   }
-  return name;
+  return name.startsWith("atlas_") ? `atlas.${name.slice("atlas_".length)}` : name;
 }
 
-const FAILS = new Set(["ERROR", "FAILED", "NOT_EXECUTED", "BLOCKED", "MALFORMED_RESULT", "INSUFFICIENT_EVIDENCE"]);
+const FAILS = new Set(["ERROR", "FAILED", "NOT_EXECUTED", "BLOCKED", "MALFORMED_RESULT", "INSUFFICIENT_EVIDENCE", "VERIFICATION_REQUIRED"]);
 function hasErr(o) {
   if (!o || typeof o !== "object" || Array.isArray(o)) return false;
   const s = typeof o.status === "string" ? o.status.toUpperCase() : "";
@@ -43,7 +43,7 @@ export async function run({ positionals = [], flags = {}, callToolFn = callTool 
   const pos = Array.isArray(positionals) ? positionals : [];
   const [name, rawArgs] = pos;
   if (!name) throw new Error("Tool name required. Usage: megabrain call <tool> [args-json]");
-  validateToolName(name);
+  const tool = validateToolName(name);
   if (pos.length > 2) throw new Error("Too many arguments. Usage: megabrain call <tool> [args-json]");
   let args = {};
   if (rawArgs !== undefined) {
@@ -56,7 +56,7 @@ export async function run({ positionals = [], flags = {}, callToolFn = callTool 
       throw new Error("Arguments must be a JSON object");
     }
   }
-  const result = await callToolFn(name, args, { endpoint: flags.endpoint, token: flags.token });
+  const result = await callToolFn(tool, args, { endpoint: flags.endpoint, token: flags.token });
   if (isBusinessFailure(result)) process.exitCode = 1;
   if (flags.json) {
     console.log(JSON.stringify(result));

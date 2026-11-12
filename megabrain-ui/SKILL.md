@@ -1,51 +1,46 @@
 ---
 name: megabrain-ui
-version: "3.2.0"
-description: "Execute headless visual TDD, validate CSS against design tokens, and audit WCAG 2.1 accessibility and target sizing."
-allowed-tools: ["mcp__megabrain__*", "terminal"]
+version: "4.0.0"
+description: "Run visual TDD and WCAG checks in the harness; upload screenshots to Atlas as artifacts."
+allowed-tools: ["mcp__atlas__*", "terminal"]
 ---
 
-# MegaBrain UI
+# Atlas UI
 
-Execute headless visual TDD, validate CSS against design tokens, and audit WCAG 2.1 accessibility via MegaBrain MCP.
+Visual TDD, CSS, DOM, and WCAG run in this harness. Atlas does not render pages. Upload PNG/HTML bytes after the local gate.
 
 ## When to Use
 
-- Executing headless visual test-driven development (TDD) cycles (`playwright_capture`, `summarize_visual_tdd`).
-- Auditing DOM structure for semantic hierarchy, landmark roles, and accessible labels (`dom_audit`).
-- Validating CSS syntax, brace balance, and property hygiene (`css_validator`).
-- Enforcing semantic design token conformance and detecting raw hex/rgb drift (`design_tokens`).
-- Auditing color contrast and touch target sizing compliance offline via `scripts/wcag_check.js`.
+- Contrast, target size, or DOM hierarchy must pass before submit.
+- A screenshot is an artifact of a leased task.
+- Offline `scripts/wcag_check.js`.
 
 ## NOT for
 
-- End-to-end sovereign mission orchestration or swarm checkpoints (`megabrain-orchestrate`).
-- DAG task decomposition, topological waves, or dependency auto-healing (`megabrain-pipeline`).
-- Cryptographic Merkle audit ledgers, Ed25519 receipts, or time-travel replay (`megabrain-audit`).
-- Multi-reviewer consensus, anti-slop linting, or voice calibration (`megabrain-review`).
+- End-to-end claim/verify (`megabrain-orchestrate`).
+- DAG create (`megabrain-pipeline`).
+- Cryptographic evidence (`megabrain-audit`).
+- Multi-reviewer consensus (`megabrain-review`).
+- Calling `megabrain.playwright_capture`, `dom_audit`, `css_validator`, `design_tokens`, `summarize_visual_tdd`.
 
-## Workflow & CLI
+## Workflow
 
-Execute via `megabrain call` com nome qualificado e JSON objeto. O parser rejeita JSON que não seja objeto.
+Execute via `megabrain call` with a JSON object. The parser rejects non-objects.
 
 ```bash
-# 1. Captura headless com fixture permitida e PNG. Sem URL remota/SSRF.
+# 1. Captura headless with a local fixture and PNG. Sem URL remota/SSRF.
 # O retorno traz screenshot em base64 PNG; decodifique e valide os magic bytes `89 50 4E 47` antes de usar; URL remota/SSRF é proibida.
-megabrain call megabrain.playwright_capture '{"url":"http://127.0.0.1:8000/fixture.html","viewport":{"width":1280,"height":800}}'
+# Playwright, if present, is local. Then upload:
+megabrain call atlas.complete_upload '{"project_id":"proj_alpha","session_id":"up_1","data_base64":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="}'
 
-# 2. Visual TDD usa html_content real, não path html/css.
-megabrain call megabrain.summarize_visual_tdd '{"html_content":"<main><h1>Ok</h1></main>"}'
-
-# 3. DOM audit com html_content.
-megabrain call megabrain.dom_audit '{"html_content":"<main><h1>Ok</h1></main>"}'
-
-# 4. CSS validator com css_content. design_tokens usa action + css_content, não validate nem path de CSS.
-megabrain call megabrain.css_validator '{"css_content":".btn { color: var(--primary); }"}'
-megabrain call megabrain.design_tokens '{"action":"validate","css_content":":root { --primary: #111827; } .btn { color: var(--primary); }"}'
-
+# 2. Visual TDD usa html_content real, não path html/css — local harness.
+# 3. DOM audit com html_content — local.
+# 4. CSS validator com css_content. design_tokens usa action + css_content, não validate nem path de CSS — local.
 # 5. wcag_check.js local aceita JSON/flags. Não é CSS headless. JSON inválido falha fechado.
 node scripts/wcag_check.js --fg="#ffffff" --bg="#111827" --width=44 --height=44
 ```
+
+Playwright capture, if you run it locally, uses a loopback URL such as `http://127.0.0.1:8000/fixture.html` with viewport width/height. Do not call a remote URL.
 
 ## Visual Gates & WCAG Compliance
 

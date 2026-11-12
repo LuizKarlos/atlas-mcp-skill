@@ -2,14 +2,14 @@
 
 Aligns generated documentation and code artifacts with canonical author style via `@megabrain/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
 
-## Stylistic Alignment (`megabrain.voice_calibrate`)
+## Stylistic Alignment (local voice calibrate)
 
 Compares generated drafts against gold-standard author samples to preserve authentic developer voice:
 - **Tone Matching**: Ensures declarative, confident, and direct delivery without passive softening.
 - **Vocabulary Calibration**: Prioritizes concise domain terminology over generic marketing jargon.
 - **Cadence Scoring**: Measures semantic similarity and density against canonical author baselines.
 
-## Rhythm & Readability Metrics (`megabrain.readability_score`)
+## Rhythm & Readability Metrics (local readability score)
 
 Monitors syntactic and structural flow to avoid robotic monotony:
 - **Sentence Length Variance ($\sigma^2$)**: Alternates short punchy assertions with explanatory compound clauses.

@@ -1,34 +1,9 @@
-# Swarm Coordination Specification
+# Swarm coordination — removed in Atlas v1
 
-Framework for coordinating autonomous multi-agent swarms, budgets, and concurrency locks via MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`) and `@megabrain/cli`.
+`megabrain.coordinate_mission_swarm` is not a server tool. Atlas does not schedule agents, budgets, or `agent_id`.
 
-## Autonomous Swarm Coordination (`coordinate_mission_swarm`)
+Concurrency is exclusive leases: two `atlas.claim_task` calls, one winner. Failed or expired leases re-queue the task.
 
-Swarms execute autonomous agents across topological DAG waves:
-- **Wave Partitioning**: Subtasks grouped by disjoint file paths for safe parallelism.
-- **Context Virtualization**: Minimal surgical context packets (<3,000 tokens) dispatched per agent.
-- **Evidence Gates**: Subtask progression requires deterministic GREEN test verification.
+If a harness runs more than one LLM, they share the same USER API key. That is same-account parallelism, not a swarm.
 
-## Budget Allocation (Tokens & Time)
-
-Strict operational ceilings prevent runaway resource consumption:
-- **Token Quotas**: Per-task allocation with SHA-256 context deduplication (>75% token savings).
-- **Timeout Ceilings**: Bounded wall-clock timeouts trigger auto-remediation or fail-closed abort.
-
-## Concurrency Arbitration (`arbitrate_concurrency`)
-
-Prevents file access collisions and deadlocks across concurrent subagents:
-- **Lock Modes**:
-  - `SHARED`: Simultaneous read-only access by multiple agents.
-  - `EXCLUSIVE`: Single-agent write lock on specific file paths.
-- **Lease Operations**:
-  - `acquire`: Claims lock on `paths` with `agent_id`, `workspace_id`, and `ttl_seconds`.
-  - `renew`: Heartbeat extends `expires_at` for long-running executions.
-  - `release`: Deterministic cleanup requiring matching `agent_id` in `finally` blocks.
-- **Zombie Purging**: Expired leases (`expires_at < now()`) auto-evict, promoting waiters.
-
-```bash
-megabrain call megabrain.arbitrate_concurrency '{"action":"acquire","mode":"EXCLUSIVE","paths":["src/core.js"],"ttl_seconds":30,"agent_id":"t1"}'
-```
-
-Sem `evidence_bundle` o swarm retorna INSUFFICIENT_EVIDENCE. Sem executor retorna NOT_EXECUTED, nunca SUCCESS falso. Arbitragem de lease não é execução automática de missão.
+INSUFFICIENT_EVIDENCE and NOT_EXECUTED were kernel statuses of the removed swarm tool. On Atlas v1, missing verification is `VERIFICATION_REQUIRED`; a pending Docker run is not SUCCESS.

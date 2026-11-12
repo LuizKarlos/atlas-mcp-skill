@@ -16,9 +16,9 @@ test('PUBLIC_CHANNEL_CONTRACT_NOT_LIVE', () => {
   assert.doesNotMatch(readme, /github\.com\/[^/]+\/[^/]+\/releases/i);
 
   // Local tarball artifact from s22 preserved
-  assert.match(readme, /npm install -g \.\/dist\/megabrain-cli-3\.2\.0\.tgz/);
+  assert.match(readme, /npm install -g \.\/dist\/megabrain-cli-4\.0\.0\.tgz/);
   assert.match(readme, /Node >=18/);
-  assert.match(readme, /3\.2\.0/);
+  assert.match(readme, /4\.0\.0/);
   assert.match(readme, /sha256sum -c/);
   assert.match(readme, /rollback/i);
 });

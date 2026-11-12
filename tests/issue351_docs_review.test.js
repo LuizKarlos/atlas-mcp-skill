@@ -13,7 +13,7 @@ const voice = readFileSync(join(root, 'megabrain-review/references/voice-calibra
 const docs = skill + slop + dual + voice;
 
 test('DOCS_REV_APPROVED', () => {
-  assert.match(skill, /megabrain\.adjudicate_consensus/);
+  assert.match(skill, /atlas\.submit_task_review/);
   assert.match(skill, /approved/);
   assert.match(docs, /não é autorização/);
   assert.match(docs, /advisory/);
@@ -27,29 +27,23 @@ test('DOCS_REV_NO_ARBITER', () => {
 });
 
 test('DOCS_REV_JSON', () => {
-  assert.match(skill, /megabrain\.anti_slop_lint/);
-  assert.match(skill, /megabrain\.voice_calibrate/);
+  assert.match(skill, /Anti-slop com JSON objeto/);
+  assert.match(skill, /Voice calibrate com JSON objeto/);
   assert.match(slop, /JSON objeto/);
   assert.match(voice, /JSON objeto/);
   assert.doesNotMatch(slop, /call anti_slop_lint --text/);
 });
+
 test('DOCS_REV_CALLS_AND_AST', () => {
   const calls = [...skill.matchAll(/megabrain call (\S+) '([^']+)'/g)].map(m => ({ tool: m[1], json: JSON.parse(m[2]) }));
-  assert.ok(calls.length >= 4);
+  assert.ok(calls.length >= 1);
   for (const c of calls) assert.equal(typeof c.json, 'object');
-  const adj = calls.find(c => c.tool === 'megabrain.adjudicate_consensus')?.json;
-  assert.ok(adj && adj.task_id && Array.isArray(adj.reviews) && adj.reviews.length > 0);
-  const r0 = adj.reviews[0];
-  for (const req of ['reviewer', 'approved', 'score', 'verdict', 'notes', 'rationale']) {
-    assert.ok(req in r0, `reviews[0] missing ${req}`);
-  }
-  for (const t of ['megabrain.anti_slop_lint', 'megabrain.voice_calibrate', 'megabrain.readability_score']) {
-    assert.ok(calls.find(c => c.tool === t)?.json.text);
-  }
-  assert.ok(calls.find(c => c.tool === 'megabrain.voice_calibrate')?.json.author_sample);
-  const kPath = process.env.MEGABRAIN_KERNEL_SOURCE || '/srv/megabrain-dev/repository/runtime/mcp_server.py';
+  const adj = calls.find(c => c.tool === 'atlas.submit_task_review')?.json;
+  assert.ok(adj && adj.project_id && adj.mission_id && adj.task_id && adj.execution_id && adj.review_execution_id && adj.verdict && adj.rationale);
+  const kPath = process.env.MEGABRAIN_KERNEL_SOURCE || '/srv/megabrain-dev/repository/runtime/atlas_mcp_server.py';
   const sigs = existsSync(kPath)
-    ? JSON.parse(execSync('python3 - <<PY\nimport ast, json\ntree = ast.parse(open("' + kPath + '").read())\nprint(json.dumps({n.name: [a.arg for a in n.args.args] for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}))\nPY', { encoding: 'utf8' }))
-    : { adjudicate_consensus_tool: ['task_id', 'reviews', 'work_id'] };
-  assert.ok(Object.keys(adj).every(k => sigs.adjudicate_consensus_tool.includes(k)));
+    ? JSON.parse(execSync('python3 - <<PY\nimport ast, json\ntree = ast.parse(open("' + kPath + '").read())\nprint(json.dumps({n.name: [a.arg for a in n.args.args if a.arg not in ("self",)] for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}))\nPY', { encoding: 'utf8' }))
+    : { atlas_submit_task_review: ['project_id', 'mission_id', 'task_id', 'execution_id', 'review_execution_id', 'verdict', 'rationale'] };
+  const allowed = sigs.atlas_submit_task_review || ['project_id', 'mission_id', 'task_id', 'execution_id', 'review_execution_id', 'verdict', 'rationale'];
+  assert.ok(Object.keys(adj).every(k => allowed.includes(k)));
 });

@@ -1,26 +1,25 @@
 # Topological Wave Partitioning
 
-Defines topological wave execution and path isolation algorithms via `@megabrain/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+Waves are a local view of an Atlas DAG. Atlas does not expose `get_parallel_waves` or `execute_pipeline`.
 
 ## Partitioning Algorithm (Kahn's In-Degree)
 
-Topological waves group mutually independent tasks into concurrent execution batches:
-1. **In-Degree Calculation**: Count unresolved incoming dependencies (`in_degree`) per task.
+1. **In-Degree Calculation**: Count unresolved incoming dependencies per task from `atlas.get_mission`.
 2. **Wave Extraction**: Collect all tasks where `in_degree == 0` into the current wave.
-3. **Graph Reduction**: Concurrently execute current wave; upon completion, decrement dependent `in_degree` counts.
-4. **Iterative Progression**: Repeat until all nodes are resolved or fail-closed if cycle detected.
+3. **Graph Reduction**: Claim and finish the current wave; decrement dependents.
+4. **Iterative Progression**: Repeat until all nodes are resolved or fail-closed if a cycle is detected.
 
 ## Parallel Execution and Path Isolation
 
-- **Independent Concurrency**: Subtasks within a wave run in parallel with disjoint agent sessions.
-- **Path Isolation**: Concurrent subtasks must operate on mutually exclusive file paths to prevent race conditions.
-- **Lock Enforcement**: Exclusive path locks are arbitrated via `arbitrate_concurrency` before wave execution.
+- **Independent Concurrency**: Tasks in a wave may be claimed by separate harness sessions sharing the USER key.
+- **Path Isolation**: Concurrent tasks must operate on mutually exclusive file paths.
+- **Lock Enforcement**: Exclusive path locks live in the harness, not in Atlas. `arbitrate_concurrency` is not a server tool.
 
 ## Execution via CLI
 
 ```bash
-megabrain call megabrain.get_parallel_waves '{"work_id":"work_local_1"}'
-megabrain call megabrain.execute_pipeline '{"work_id":"work_local_1","test_commands":{"t1":{"command":"node --test tests/issue351_docs_pipeline.test.js"}}}'
+megabrain call atlas.get_mission '{"project_id":"proj_alpha","mission_id":"mis_dag"}'
+node scripts/dag_validator.js tasks.json
 ```
 
-`execute_pipeline` exige `test_commands` verificados pelo harness: o harness executa o comando e envia status GREEN com exit_code: 0 apenas após prova real (não fabricar GREEN; negativos são NOT_EXECUTED ou MALFORMED_RESULT). `work_id` e `task_id` vêm de decompose/dispatch. Sem `wave_index`. Sem provider.
+Local tests use `test_commands` in the harness: execute the command and treat GREEN with exit_code: 0 only after real proof (não fabricar GREEN; negativos são NOT_EXECUTED ou MALFORMED_RESULT). Sem `wave_index`. Sem provider.

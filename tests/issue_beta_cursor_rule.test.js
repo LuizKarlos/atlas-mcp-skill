@@ -22,7 +22,7 @@ test("preserves existing .cursor rule and creates canonical when absent", async 
       process.chdir(dir);
       await run({ flags: { endpoint: "http://127.0.0.1:9000/mcp", json: true } });
       const actual = fs.readFileSync(rule, "utf8");
-      assert.equal(actual, preexisting ?? "# MegaBrain Rules\nUse MegaBrain MCP tools.\n");
+      assert.equal(actual, preexisting ?? "# Atlas Rules\nUse Atlas MCP tools (atlas.*).\n");
     }
   } finally {
     process.chdir(prevCwd);

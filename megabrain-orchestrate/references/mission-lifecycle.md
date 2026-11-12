@@ -1,35 +1,35 @@
 # Mission Lifecycle Specification
 
-Governs mission state transitions and atomic checkpointing in MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`) via `@megabrain/cli`.
+Governs Atlas v1 mission state via MCP (`https://mcp.atlascommand.dev/mcp`). Companion CLI may call tools; it does not own mission logic.
 
 ## Lifecycle States
 
-- **INIT**: Task intake and contract refinement (`refine_prompt`). WorkRecord instantiated with DAG.
-- **RUNNING**: Topological waves executing subtasks concurrently with GREEN test gates.
-- **CHECKPOINT**: Execution paused to persist immutable state snapshot before risky mutations.
-- **COMPLETED**: All subtasks verified GREEN (`verify_subtask`) and Merkle ledger exported.
-- **FAILED**: Unrecoverable regression or exhausted remediations; triggers fail-closed state.
+- **ACTIVE**: `atlas.create_mission` persisted an acyclic DAG. Tasks start `PENDING`.
+- **RUNNING**: `atlas.claim_task` issued lease, fence, nonce; execution is `RUNNING`.
+- **VERIFICATION**: `atlas.request_verification` created a `PENDING` run; worker records the signed result.
+- **COMPLETED**: terminal DAG tasks submitted after `CHECK_EXECUTION_VERIFIED` when required.
+- **ARCHIVED**: `atlas.archive_mission`. Stays archived.
+- **FAILED**: unrecoverable check or exhausted lease; fail-closed.
 
 ```
-INIT ──> RUNNING ──┬──> CHECKPOINT ──> RUNNING
-                   ├──> COMPLETED (all gates GREEN)
-                   └──> FAILED (unrecoverable / budget exhausted)
+ACTIVE ──> RUNNING ──┬──> VERIFICATION ──> RUNNING
+                     ├──> COMPLETED
+                     └──> ARCHIVED / FAILED
 ```
 
-## Checkpoint & Rollback Protocol
+There is no CHECKPOINT state. Atlas v1 does not snapshot or roll back client files.
 
-1. **Snapshot (`megabrain.create_checkpoint`)**:
-   - Takes `work_id` and optional `label`.
-   - Serializes atomic snapshot of `WorkRecord` (DAG, task outputs, event log).
-   - Returns immutable `checkpoint_id`.
-2. **Rollback (`megabrain.rollback_checkpoint`)**:
-   - Takes `work_id` and `checkpoint_id`.
-   - Deterministically restores `WorkRecord` to snapshot and releases acquired locks.
-   - Appends signed rollback event to audit ledger.
+## Protocol
+
+1. **Create** (`atlas.create_mission`): `project_id`, `mission_id`, `tasks`, optional `dependencies`.
+2. **Claim** (`atlas.claim_task`): returns `execution_id`, `lease_id`, `fence_token`, `nonce`.
+3. **Verify** (`atlas.request_verification` then `atlas.get_verification`).
+4. **Submit** (`atlas.submit_task_result`) with the same lease/fence/nonce.
+5. **Export** (`atlas.export_evidence`).
 
 ```bash
-megabrain call megabrain.create_checkpoint '{"work_id":"work_local_1","label":"pre-patch"}'
-megabrain call megabrain.rollback_checkpoint '{"work_id":"work_local_1","checkpoint_id":"pre-patch"}'
+megabrain call atlas.create_mission '{"project_id":"proj_alpha","mission_id":"mis_hold","tasks":[{"task_id":"t_impl"}]}'
+megabrain call atlas.claim_task '{"project_id":"proj_alpha","mission_id":"mis_hold"}'
 ```
 
-`orchestrate` exige `prompt`, `idempotency_key` e `workspace_root`. Mock/parser não é prova live. Sem checkpoint persistido, `inspect` devolve MISSION_NOT_FOUND.
+`inspect` de missão inexistente devolve MISSION_NOT_FOUND. Mock/parser não é prova live.

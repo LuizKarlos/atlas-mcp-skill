@@ -2,7 +2,7 @@
 
 Enforces direct, humanized communication and removes synthetic AI tropes via `@megabrain/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
 
-## Automated Linting Protocol (`megabrain.anti_slop_lint`)
+## Automated Linting Protocol (local anti-slop lint)
 
 Scans text against humanizer heuristics to eliminate conversational fluff, clichés, and superficial verbosity:
 - **Preamble Pruning**: Strips sycophantic openers ("Certamente!", "Com certeza!", "Como um modelo de IA...").

@@ -1,53 +1,54 @@
 ---
 name: megabrain-pipeline
-version: "3.2.0"
-description: "Decompose complex tasks into directed acyclic graphs (DAG), execute topological waves, and manage dependency auto-healing."
-allowed-tools: ["mcp__megabrain__*", "terminal"]
+version: "4.0.0"
+description: "Build acyclic Atlas DAGs, claim unblocked tasks, and inspect mission waves locally."
+allowed-tools: ["mcp__atlas__*", "terminal"]
 ---
 
-# MegaBrain Pipeline
+# Atlas Pipeline
 
-Decompose tasks into DAGs, execute topological waves, and auto-heal execution dependencies via MegaBrain MCP.
+Decompose work into an acyclic task DAG, persist it with `atlas.create_mission`, and claim ready tasks. Waves are derived from dependencies; Atlas does not expose `get_parallel_waves` or `execute_pipeline`.
 
 ## When to Use
 
-- Decomposing complex tasks into granular, acyclic subtask graphs (`decompose`).
-- Partitioning subtasks into concurrent execution waves via Kahn's algorithm (`get_parallel_waves`).
-- Scheduling and executing sovereign wave pipelines across subtasks (`execute_pipeline`).
-- Diagnosing graph blockages and dynamic dependency auto-healing (`heal_dependency_graph`).
+- More than one task, with explicit `depends_on_task_id`.
+- Need `atlas.get_mission` to see which tasks are still `PENDING`.
+- Local acyclicity check before create (`scripts/dag_validator.js`).
 
 ## NOT for
 
-- End-to-end sovereign mission orchestration or swarm checkpoints (`megabrain-orchestrate`).
-- Multi-reviewer consensus, anti-slop linting, or voice calibration (`megabrain-review`).
-- Headless visual TDD, CSS validation, or WCAG accessibility audits (`megabrain-ui`).
+- End-to-end verify/submit (`megabrain-orchestrate`).
+- Review verdicts (`megabrain-review`).
+- Headless visual TDD (`megabrain-ui`).
+- Calling `megabrain.decompose`, `execute_pipeline`, `heal_dependency_graph`, `synthesize_subtask`.
 
-## Workflow & CLI
+## Workflow
 
-Execute via `megabrain call` com nome qualificado e JSON objeto. O parser rejeita JSON que não seja objeto.
+Execute via `megabrain call` with a qualified `atlas.*` name and a JSON object. The parser rejects non-objects.
 
 ```bash
-# 1. Decompose: prompt obrigatório; tasks opcional. Sem profundidade máxima.
-megabrain call megabrain.decompose '{"prompt":"Analyze local DAG","tasks":[{"id":"t1","title":"plan","category":"PLANNING","dependencies":[]}]}'
+# 1. Persist DAG. prompt is not an Atlas field. Sem profundidade máxima.
+megabrain call atlas.create_mission '{"project_id":"proj_alpha","mission_id":"mis_dag","tasks":[{"task_id":"t1","title":"plan"},{"task_id":"t2"}],"dependencies":[{"task_id":"t2","depends_on_task_id":"t1"}]}'
 
-# 2. Waves a partir do work_id já criado. Mock/parser não é prova live.
-megabrain call megabrain.get_parallel_waves '{"work_id":"work_local_1"}'
+# 2. Inspect tasks and edges. Mock/parser não é prova live.
+megabrain call atlas.get_mission '{"project_id":"proj_alpha","mission_id":"mis_dag"}'
 
-# 3. execute_pipeline exige test_commands: o harness executa o comando e envia status GREEN com exit_code: 0 apenas após prova real (não fabricar GREEN; negativos são NOT_EXECUTED ou MALFORMED_RESULT). work_id e task_id vêm de decompose/dispatch. Sem índice de wave. Sem provider.
-megabrain call megabrain.execute_pipeline '{"work_id":"work_local_1","test_commands":{"t1":{"command":"node --test tests/issue351_docs_pipeline.test.js"}},"auto_heal":false}'
+# 3. Claim the next unblocked PENDING task. GREEN/exit_code: 0 only after real local tests; do not fabricate GREEN. Negatives are NOT_EXECUTED or MALFORMED_RESULT on the harness, not on Atlas. Sem índice de wave. Sem provider.
+megabrain call atlas.claim_task '{"project_id":"proj_alpha","mission_id":"mis_dag"}'
 
-# 4. heal usa tasks/catálogo. Cura reconhecida e estado terminal. Sem execução de provider.
-megabrain call megabrain.heal_dependency_graph '{"tasks":[{"id":"t1","title":"t1","category":"IMPLEMENTATION","dependencies":["missing_cap"],"status":"BLOCKED"}],"completed_task_ids":[],"failed_task_ids":["t1"],"capability_catalog":{"missing_cap":{"title":"Heal","category":"IMPLEMENTATION","produces":["missing_cap"]}}}'
+# 4. Local wave preview (not a server tool).
+node scripts/dag_validator.js tasks.json
 
-# 5. synthesize_subtask cria subtask vinculada a parent_task_id com dependências.
-megabrain call megabrain.synthesize_subtask '{"work_id":"work_local_1","parent_task_id":"t1","new_task":{"id":"t1_heal_missing_cap","title":"Heal","category":"IMPLEMENTATION","dependencies":["t1"]}}'
+# 5. Blocked cycle or missing edge: fail closed. Atlas rejects cyclic create_mission. There is no heal_dependency_graph; fix the DAG and create a new mission. Cura reconhecida e estado terminal. Sem execução de provider. BLOCKED tasks stay blocked until dependencies complete.
 ```
+
+Local tests belong in the harness. Atlas only attests via `atlas.request_verification`. test_commands are local, not an Atlas argument.
 
 ## UX & Fault Tolerance Rules
 
-- **Path Isolation**: Concurrent wave tasks must operate on mutually exclusive file paths.
+- **Path Isolation**: Concurrent claimed tasks must operate on mutually exclusive file paths.
 - **Fail-Closed on Cycles**: Abort immediately if cyclic dependencies or graph deadlocks occur.
-- **Bounded Healing**: Cap auto-healing retries (default: 2) before fail-closed escalation.
+- **Bounded Healing**: Cap local retries (default: 2) before fail-closed escalation. No server auto-heal.
 
 ## References
 

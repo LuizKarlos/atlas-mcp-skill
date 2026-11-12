@@ -1,269 +1,277 @@
 ---
 name: megabrain-surface
-version: 3.2.0
-description: Operational reference for MegaBrain MCP surface covering tools, aliases, resources, prompts, roles, transports, observability, and errors.
+version: 4.0.0
+description: Atlas v1 MCP surface: 26 atlas.* tools, USER/ADMIN identity, transports, errors.
 ---
 
-# Superfície operacional — parte 1
+# Superfície Atlas v1
 
-## megabrain.health
-Assinatura: `megabrain.health()` -> status, kernel_ready, roles_count, components.
-Limite: Chamada operacional síncrona sem efeitos colaterais.
+Servidor: 26 tools `atlas.*`. Sem alias `megabrain.*`. Sem roles Atlas. Sem painel. Sem CLI de missão.
+
+No Hermes o bloco MCP chama-se `atlas`. Tools aparecem como `mcp__atlas__atlas_<action>` (ponto vira underscore). Chame essa tool. O prefixo legado `mcp__megabrain__*` e as 36 tools antigas não existem neste servidor.
+
+Handshake e keepalive `POST /mcp` (`Terminating session: None`) são transporte, não trabalho.
+
+## Identidade canônica
+
+Atlas v1 não registra role. Identidade vem da API key:
+
+- `atlas_user_<hex>` — conta `USER`: projetos, missões, leases, uploads, verificação, evidência.
+- `atlas_admin_<hex>` — conta `ADMIN`: criar conta e emitir/rotar/listar/revogar keys. Admin não lê conteúdo de projeto.
+
+Não envie `account_id`, owner, admin, role ou status como autoridade no payload. A key autenticada é a autoridade.
+
+Papéis de harness (`implementer`, `reviewer`) ficam no ambiente da LLM. Não são tools nem parâmetros MCP.
+
+## Catálogo — 26/26
+
+### Serviço e contas
+
+## atlas.health
+Assinatura: `atlas.health()` -> status, sqlite_version.
+Limite: liveness; sem efeito. Runtime devolve `HEALTHY`.
 ```bash
-megabrain call megabrain.health '{}'
+megabrain call atlas.health '{}'
 ```
 
-## megabrain.inspect
-Assinatura: `megabrain.inspect(mission_id)` (aceita execution_id/receipt_id).
-Limite: Leitura de estado de missão ou execução anterior.
+## atlas.create_account
+Assinatura: `atlas.create_account(name, account_type="USER")`.
+Limite: admin.
 ```bash
-megabrain call megabrain.inspect '{"mission_id":"mission-123"}'
+megabrain call atlas.create_account '{"name":"user-alpha","account_type":"USER"}'
 ```
 
-## megabrain.inspect_work
-Assinatura: `megabrain.inspect_work(work_id)` -> tasks, events, attestation.
-Limite: Consulta do registro imutável do WorkRecord e eventos criptográficos.
+## atlas.issue_api_key
+Assinatura: `atlas.issue_api_key(account_id)` -> key, raw_key.
+Limite: admin; raw_key uma vez; recusa segunda key ativa.
 ```bash
-megabrain call megabrain.inspect_work '{"work_id":"work-123"}'
+megabrain call atlas.issue_api_key '{"account_id":"acc_local_1"}'
 ```
 
-## megabrain.refine_prompt
-Assinatura: `megabrain.refine_prompt(prompt, context, risk_level)`.
-Limite: Refinamento de contrato e validação antes da execução.
+## atlas.rotate_api_key
+Assinatura: `atlas.rotate_api_key(account_id)`.
+Limite: admin; troca atômica.
 ```bash
-megabrain call megabrain.refine_prompt '{"prompt":"Build feature","context":"Context repo","risk_level":"MEDIUM"}'
+megabrain call atlas.rotate_api_key '{"account_id":"acc_local_1"}'
 ```
 
-## Superfície de governança e operação — parte 2
-
-### megabrain.grant_approval
-Assinatura: `megabrain.grant_approval(work_id, task_id, approver="user")` -> approved, work_id, task_id, state.
-Limite: Aprovação explícita de task em WAITING_APPROVAL transicionando para RUNNING.
+## atlas.list_api_keys
+Assinatura: `atlas.list_api_keys(account_id)`.
+Limite: admin; metadados, sem segredo.
 ```bash
-megabrain call megabrain.grant_approval '{"work_id":"work-123","task_id":"t1","approver":"user"}'
+megabrain call atlas.list_api_keys '{"account_id":"acc_local_1"}'
 ```
 
-### megabrain.resume_pipeline
-Assinatura: `megabrain.resume_pipeline(work_id, test_commands=None)` -> status, work_id, execution_state.
-Limite: Retoma pipeline pausado ou aguardando aprovação com novos comandos de teste.
+## atlas.revoke_api_key
+Assinatura: `atlas.revoke_api_key(key_id)`.
+Limite: admin.
 ```bash
-megabrain call megabrain.resume_pipeline '{"work_id":"work-123","test_commands":{"t1":{"status":"GREEN","exit_code":0}}}'
+megabrain call atlas.revoke_api_key '{"key_id":"key_local_1"}'
 ```
 
-### megabrain.evaluate_execution_canary
-Assinatura: `megabrain.evaluate_execution_canary(primary_output, reference_output, max_allowed_divergence=0.05, critical_keys=None)` -> status, divergence, passed.
-Limite: Avalia divergência de execução entre outputs primário e referência com tolerância default de 0.05.
+### Projetos e manifests
+
+## atlas.create_project
+Assinatura: `atlas.create_project(name)` -> project_id.
 ```bash
-megabrain call megabrain.evaluate_execution_canary '{"primary_output":{"status":"GREEN","exit_code":0},"reference_output":{"status":"GREEN","exit_code":0}}'
+megabrain call atlas.create_project '{"name":"Alpha"}'
 ```
 
-### megabrain.get_mission_scorecard
-Assinatura: `megabrain.get_mission_scorecard(work_id)` -> work_id, scorecard, metrics.
-Limite: Consulta consolidada do scorecard executivo cobrindo tarefas e métricas da missão.
+## atlas.list_projects
+Assinatura: `atlas.list_projects()`.
 ```bash
-megabrain call megabrain.get_mission_scorecard '{"work_id":"work-123"}'
+megabrain call atlas.list_projects '{}'
 ```
 
-### megabrain.get_telemetry_report
-Assinatura: `megabrain.get_telemetry_report()` -> metrics, distribution, uptime.
-Limite: Consulta contadores vivos e telemetria operacional sem efeitos colaterais.
+## atlas.get_project
+Assinatura: `atlas.get_project(project_id)`.
 ```bash
-megabrain call megabrain.get_telemetry_report '{}'
+megabrain call atlas.get_project '{"project_id":"proj_alpha"}'
 ```
 
-### megabrain.export_client_config
-Assinatura: `megabrain.export_client_config(client_type="all", tunnel_url=None, auth_token=None)` -> status, configs, client_type.
-Limite: Rejeita query sensível e userinfo no endpoint; nunca incluir token ou credencial no exemplo.
+## atlas.archive_project
+Assinatura: `atlas.archive_project(project_id)`.
 ```bash
-megabrain call megabrain.export_client_config '{"client_type":"cursor","tunnel_url":"https://mcp.atlascommand.dev/mcp"}'
+megabrain call atlas.archive_project '{"project_id":"proj_alpha"}'
 ```
 
-## Aliases underscore — 36/36
+## atlas.register_check_manifest
+Assinatura: `atlas.register_check_manifest(project_id, manifest_id, manifest_payload)`.
+Limite: adapters tipados; sem comando livre.
+```bash
+megabrain call atlas.register_check_manifest '{"project_id":"proj_alpha","manifest_id":"man_py","manifest_payload":{"adapter":"python.pytest","checks":[{"id":"unit","command":["python","-m","pytest","-q"]}]}}'
+```
 
-Regra 1:1: `megabrain.<tool>` ↔ `megabrain_<tool>`; ambos aceitos pelo CLI; alias não é tool nova.
-Gramática do CLI: aceita `megabrain.health` e `megabrain_health`; rejeita `megabrain.`, `megabrain..health` e string vazia; argumentos devem ser JSON objeto (array/null rejeitados).
+## atlas.list_check_manifests
+Assinatura: `atlas.list_check_manifests(project_id)`.
+```bash
+megabrain call atlas.list_check_manifests '{"project_id":"proj_alpha"}'
+```
+
+### Missões e tarefas
+
+## atlas.create_mission
+Assinatura: `atlas.create_mission(project_id, mission_id, tasks, dependencies=None)`.
+Limite: DAG acíclico; cada task tem `task_id`; `manifest_id` opcional.
+```bash
+megabrain call atlas.create_mission '{"project_id":"proj_alpha","mission_id":"mis_hold","tasks":[{"task_id":"t_impl","manifest_id":"man_py"},{"task_id":"t_review"}],"dependencies":[{"task_id":"t_review","depends_on_task_id":"t_impl"}]}'
+```
+
+## atlas.list_missions
+Assinatura: `atlas.list_missions(project_id)`.
+```bash
+megabrain call atlas.list_missions '{"project_id":"proj_alpha"}'
+```
+
+## atlas.get_mission
+Assinatura: `atlas.get_mission(project_id, mission_id)`.
+```bash
+megabrain call atlas.get_mission '{"project_id":"proj_alpha","mission_id":"mis_hold"}'
+```
+
+## atlas.archive_mission
+Assinatura: `atlas.archive_mission(project_id, mission_id)`.
+```bash
+megabrain call atlas.archive_mission '{"project_id":"proj_alpha","mission_id":"mis_hold"}'
+```
+
+## atlas.claim_task
+Assinatura: `atlas.claim_task(project_id, mission_id=None, timeout_seconds=300)` -> execution_id, lease_id, fence_token, nonce.
+```bash
+megabrain call atlas.claim_task '{"project_id":"proj_alpha","mission_id":"mis_hold","timeout_seconds":300}'
+```
+
+## atlas.renew_task_lease
+Assinatura: `atlas.renew_task_lease(project_id, lease_id, fence_token, nonce, extend_seconds=300)`.
+```bash
+megabrain call atlas.renew_task_lease '{"project_id":"proj_alpha","lease_id":"lease_1","fence_token":1,"nonce":"n1","extend_seconds":300}'
+```
+
+## atlas.submit_task_result
+Assinatura: `atlas.submit_task_result(project_id, lease_id, fence_token, nonce, result_status="COMPLETED", payload=None)`.
+Limite: se a política exige verify, submeter antes de `CHECK_EXECUTION_VERIFIED` devolve `VERIFICATION_REQUIRED` e preserva o lease.
+```bash
+megabrain call atlas.submit_task_result '{"project_id":"proj_alpha","lease_id":"lease_1","fence_token":1,"nonce":"n1","result_status":"COMPLETED"}'
+```
+
+## atlas.submit_task_review
+Assinatura: `atlas.submit_task_review(project_id, mission_id, task_id, execution_id, review_execution_id, verdict, rationale)`.
+Limite: `review_execution_id` distinto. Mesma key: `same_account_review=true`. Não é dual-blind.
+```bash
+megabrain call atlas.submit_task_review '{"project_id":"proj_alpha","mission_id":"mis_hold","task_id":"t_impl","execution_id":"ex_1","review_execution_id":"ex_2","verdict":"ACCEPT","rationale":"checks verified"}'
+```
+
+### Artifacts, verificação e evidência
+
+## atlas.begin_upload
+Assinatura: `atlas.begin_upload(project_id, mission_id, task_id, execution_id, lease_id, fence_token, nonce)`.
+```bash
+megabrain call atlas.begin_upload '{"project_id":"proj_alpha","mission_id":"mis_hold","task_id":"t_impl","execution_id":"ex_1","lease_id":"lease_1","fence_token":1,"nonce":"n1"}'
+```
+
+## atlas.complete_upload
+Assinatura: `atlas.complete_upload(project_id, session_id, data_text|data_base64|data_hex)`.
+Limite: Atlas calcula hash. Sem URL pública.
+```bash
+megabrain call atlas.complete_upload '{"project_id":"proj_alpha","session_id":"up_1","data_text":"ok"}'
+```
+
+## atlas.request_verification
+Assinatura: `atlas.request_verification(project_id, mission_id, task_id, execution_id, snapshot_b64, image_digest=None)`.
+Limite: cria run `PENDING`. O cliente não grava o resultado. Worker Docker assina.
+```bash
+megabrain call atlas.request_verification '{"project_id":"proj_alpha","mission_id":"mis_hold","task_id":"t_impl","execution_id":"ex_1","snapshot_b64":"H4sIAAAAAAAAA+3BAQEAAACCoPVPbQwfoAAAAAAAAAAAAAAAAAAAAIC3AYbORR0KAAAA"}'
+```
+
+## atlas.get_verification
+Assinatura: `atlas.get_verification(project_id, run_id)`.
+Limite: `CHECK_EXECUTION_VERIFIED` só após assinatura e vínculos.
+```bash
+megabrain call atlas.get_verification '{"project_id":"proj_alpha","run_id":"run_1"}'
+```
+
+## atlas.export_evidence
+Assinatura: `atlas.export_evidence(project_id, mission_id)` -> receipts, ledger, chain_verified.
+Limite: `chain_verified: true` só com cadeia íntegra. Não confie no booleano sem os blocos.
+```bash
+megabrain call atlas.export_evidence '{"project_id":"proj_alpha","mission_id":"mis_hold"}'
+```
+
+## atlas.get_usage
+Assinatura: `atlas.get_usage(project_id)` -> volumetrics, limits null.
+```bash
+megabrain call atlas.get_usage '{"project_id":"proj_alpha"}'
+```
+
+## Aliases underscore — 26/26
+
+Regra 1:1: `atlas.<tool>` ↔ `atlas_<tool>`. Alias não é tool nova. Sem `megabrain.*`.
 
 ```bash
-megabrain call megabrain_health '{}'
+megabrain call atlas_health '{}'
 ```
-Equivalente a `megabrain call megabrain.health '{}'`.
+Equivalente a `megabrain call atlas.health '{}'`.
 
-- megabrain.adjudicate_consensus -> megabrain_adjudicate_consensus
-- megabrain.anti_slop_lint -> megabrain_anti_slop_lint
-- megabrain.arbitrate_concurrency -> megabrain_arbitrate_concurrency
-- megabrain.coordinate_mission_swarm -> megabrain_coordinate_mission_swarm
-- megabrain.create_checkpoint -> megabrain_create_checkpoint
-- megabrain.css_validator -> megabrain_css_validator
-- megabrain.decompose -> megabrain_decompose
-- megabrain.design_tokens -> megabrain_design_tokens
-- megabrain.dispatch_subtask -> megabrain_dispatch_subtask
-- megabrain.dom_audit -> megabrain_dom_audit
-- megabrain.evaluate_execution_canary -> megabrain_evaluate_execution_canary
-- megabrain.execute_pipeline -> megabrain_execute_pipeline
-- megabrain.export_audit_ledger -> megabrain_export_audit_ledger
-- megabrain.export_client_config -> megabrain_export_client_config
-- megabrain.export_evidence_pack -> megabrain_export_evidence_pack
-- megabrain.get_mission_scorecard -> megabrain_get_mission_scorecard
-- megabrain.get_parallel_waves -> megabrain_get_parallel_waves
-- megabrain.get_telemetry_report -> megabrain_get_telemetry_report
-- megabrain.grant_approval -> megabrain_grant_approval
-- megabrain.heal_dependency_graph -> megabrain_heal_dependency_graph
-- megabrain.health -> megabrain_health
-- megabrain.inspect -> megabrain_inspect
-- megabrain.inspect_work -> megabrain_inspect_work
-- megabrain.orchestrate -> megabrain_orchestrate
-- megabrain.playwright_capture -> megabrain_playwright_capture
-- megabrain.readability_score -> megabrain_readability_score
-- megabrain.refine_prompt -> megabrain_refine_prompt
-- megabrain.resume_pipeline -> megabrain_resume_pipeline
-- megabrain.rollback_checkpoint -> megabrain_rollback_checkpoint
-- megabrain.slice_ast_context -> megabrain_slice_ast_context
-- megabrain.summarize_visual_tdd -> megabrain_summarize_visual_tdd
-- megabrain.synthesize_backend_contract -> megabrain_synthesize_backend_contract
-- megabrain.synthesize_subtask -> megabrain_synthesize_subtask
-- megabrain.time_travel_replay -> megabrain_time_travel_replay
-- megabrain.verify_subtask -> megabrain_verify_subtask
-- megabrain.voice_calibrate -> megabrain_voice_calibrate
+- atlas.health -> atlas_health
+- atlas.create_account -> atlas_create_account
+- atlas.issue_api_key -> atlas_issue_api_key
+- atlas.rotate_api_key -> atlas_rotate_api_key
+- atlas.list_api_keys -> atlas_list_api_keys
+- atlas.revoke_api_key -> atlas_revoke_api_key
+- atlas.create_project -> atlas_create_project
+- atlas.list_projects -> atlas_list_projects
+- atlas.get_project -> atlas_get_project
+- atlas.archive_project -> atlas_archive_project
+- atlas.register_check_manifest -> atlas_register_check_manifest
+- atlas.list_check_manifests -> atlas_list_check_manifests
+- atlas.create_mission -> atlas_create_mission
+- atlas.list_missions -> atlas_list_missions
+- atlas.get_mission -> atlas_get_mission
+- atlas.archive_mission -> atlas_archive_mission
+- atlas.claim_task -> atlas_claim_task
+- atlas.renew_task_lease -> atlas_renew_task_lease
+- atlas.submit_task_result -> atlas_submit_task_result
+- atlas.submit_task_review -> atlas_submit_task_review
+- atlas.begin_upload -> atlas_begin_upload
+- atlas.complete_upload -> atlas_complete_upload
+- atlas.request_verification -> atlas_request_verification
+- atlas.get_verification -> atlas_get_verification
+- atlas.export_evidence -> atlas_export_evidence
+- atlas.get_usage -> atlas_get_usage
+
+Gramática: aceita `atlas.health` e `atlas_health`; rejeita `atlas.`, `atlas..health`, `megabrain.health` e string vazia. Argumentos: JSON objeto.
+
+No Hermes, o nome de chamada é `mcp__atlas__atlas_health` (e o análogo para cada tool). Não invente `mcp__megabrain__*`.
 
 ## Resources — parte 4
 
-Catálogo MCP de recursos estáticos e templates parametrizados.
+O servidor Atlas v1 não publica resources MCP. Estado sai das tools `atlas.get_*` / `atlas.export_evidence`.
 
-### Recursos diretos
-- `megabrain://workrecords`
-- `megabrain://ledgers`
-- `megabrain://contracts`
-
-### Resource templates
-- `megabrain://workrecords/{work_id}`
-- `megabrain://ledgers/{work_id}`
-- `megabrain://contracts/{operation_id}`
-
-### Exemplo JSON-RPC `resources/read`
-Requisição:
-```json
-{"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"megabrain://workrecords/work-123"}}
-```
-
-Resposta de sucesso:
-```json
-{"jsonrpc":"2.0","id":1,"result":{"contents":[{"uri":"megabrain://workrecords/work-123","mimeType":"application/json","text":"{\"work_id\":\"work-123\"}"}]}}
-```
-
-Resposta de erro (-32002):
-```json
-{"jsonrpc":"2.0","id":1,"error":{"code":-32002,"message":"Resource not found"}}
-```
-
-Nota: `megabrain call` NAO le
-resources; resources exigem `POST /mcp` com Bearer.
+`megabrain call` NAO le resources; resources exigem `POST /mcp` com Bearer — e neste servidor a lista é vazia.
 
 ## Prompts — parte 5
 
-Catálogo de prompts interativos estruturados.
+O servidor Atlas v1 não publica prompts MCP (`sovereign-mission` e `consensus-adjudication` foram removidos).
 
-### Prompts disponíveis
-- `sovereign-mission` — args `objective` (obrigatorio), `risk_level` (default `LOW`).
-- `consensus-adjudication` — args `task_id` (obrigatorio), `min_confidence` (default `0.80`), `required_verdict` (default `APPROVED`).
+`megabrain call` NAO executa prompts; prompts exigem `POST /mcp` com Bearer — e neste servidor a lista é vazia.
 
-### Exemplos JSON-RPC `prompts/get`
+## Identidade (substitui Roles)
 
-Requisição `sovereign-mission`:
-```json
-{"jsonrpc":"2.0","id":1,"method":"prompts/get","params":{"name":"sovereign-mission","arguments":{"objective":"run pipeline","risk_level":"LOW"}}}
-```
+Nota kernel-only: zero providers/models; a key não executa inferência.
 
-Resposta de retorno (`messages` role `user`, content text):
-```json
-{"jsonrpc":"2.0","id":1,"result":{"messages":[{"role":"user","content":{"type":"text","text":"Executar sovereign mission..."}}]}}
-```
+Contas:
 
-Requisição `consensus-adjudication`:
-```json
-{"jsonrpc":"2.0","id":2,"method":"prompts/get","params":{"name":"consensus-adjudication","arguments":{"task_id":"task-123","min_confidence":"0.80","required_verdict":"APPROVED"}}}
-```
+- `USER` — opera o fluxo MCP do próprio projeto.
+- `ADMIN` — ciclo de vida de contas e keys.
 
-Resposta de erro (-32602 Invalid params para prompt desconhecido ou argumento obrigatorio ausente):
-```json
-{"jsonrpc":"2.0","id":3,"error":{"code":-32602,"message":"Invalid params"}}
-```
+Não há catálogo `mission_compiler` / `cartographer` / `implementer` / `reviewer` / `failure_diagnostician` / `creative_copywriter` no servidor. Esses nomes, se existirem, são do harness da LLM.
 
-Nota: `megabrain call` NAO executa prompts; prompts exigem `POST /mcp` com Bearer.
-
-## Roles
-
-Nota kernel-only: contratos de governança; zero providers/models; role não executa inferência.
-
-### Catalogo Canonico
-- `mission_compiler` — Compiles initial mission prompts, synthesizes requirements, and defines architectural strategy. Capabilities: `chat`. Work product: `PLAN`.
-- `cartographer` — Maps repository architecture, dependencies, and file layout. Capabilities: `chat`. Work product: `ANALYSIS`.
-- `implementer` — Primary code generator creating atomic patch units. Capabilities: `chat`, `tool_calling`. Work product: `IMPLEMENTATION`.
-- `reviewer` — Independent verification ensuring regression-free code, spec compliance, and operational criteria. Capabilities: `chat`. Work product: `REVIEW`.
-- `failure_diagnostician` — Root-cause diagnosis for test failures and error traces. Capabilities: `chat`, `reasoning`. Work product: `ANALYSIS`.
-- `creative_copywriter` — Persuasive and humanized copywriting with active AI slop elimination. Capabilities: `chat`. Work product: `ANALYSIS`.
-
-### Aliases Legados
-- `adjudicator` -> `reviewer`
-- `architecture_adjudicator` -> `reviewer`
-- `brand_strategist` -> `mission_compiler`
-- `chief_architect` -> `mission_compiler`
-- `code_reviewer` -> `reviewer`
-- `copywriter` -> `creative_copywriter`
-- `critical_acceptance` -> `reviewer`
-- `diagnostician` -> `failure_diagnostician`
-- `documentation` -> `mission_compiler`
-- `documentation_agent` -> `mission_compiler`
-- `editor` -> `reviewer`
-- `editorial_reviewer` -> `reviewer`
-- `growth_hacker` -> `creative_copywriter`
-- `independent_reviewer` -> `reviewer`
-- `marketer` -> `mission_compiler`
-- `marketing` -> `mission_compiler`
-- `next_mission` -> `mission_compiler`
-- `next_mission_generation` -> `mission_compiler`
-- `next_mission_generator` -> `mission_compiler`
-- `spec_critic` -> `reviewer`
-- `writer` -> `creative_copywriter`
-
-### Exemplos JSON
-A indicação de role ocorre via `metadata.recommended_role` na decomposição. O despacho consome `work_id` e `task_id` da tarefa registrada, sem parâmetro `role` avulso no tool.
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "params": {
-    "name": "megabrain.decompose",
-    "arguments": {
-      "prompt": "Synthesize plan",
-      "metadata": { "recommended_role": "mission_compiler" }
-    }
-  }
-}
-```
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 2,
-  "method": "tools/call",
-  "params": {
-    "name": "megabrain.dispatch_subtask",
-    "arguments": {
-      "work_id": "work-123",
-      "task_id": "st-1"
-    }
-  }
-}
-```
 ## Transportes e autenticação
-
-Três transportes suportados e governança estrita de autenticação:
 
 ### 1. Streamable HTTP
 - Entrypoint: `POST /mcp`
 - Endpoints: `http://127.0.0.1:20130/mcp` (local) e `https://mcp.atlascommand.dev/mcp` (deploy).
+- Teste A/B: porta efêmera, nunca 20130.
 - Headers obrigatórios:
   - `Content-Type: application/json`
   - `Accept: application/json, text/event-stream`
@@ -277,10 +285,10 @@ Três transportes suportados e governança estrita de autenticação:
   - `io.modelcontextprotocol/clientInfo`: objeto de identificação do cliente
 
 ### 2. stdio async
-- Entrypoint: `MegaBrainNativeMCPServer.run_stdio_async` para harness local.
+- Entrypoint: servidor Atlas stdio no harness local.
 
 ### 3. JSON-RPC stdio
-- Entrypoint: `run_jsonrpc_stdio`, newline-delimited JSON-RPC 2.0, sem `call_tool` in-process.
+- Entrypoint: newline-delimited JSON-RPC 2.0, sem `call_tool` in-process.
 
 ### Regras de Autenticação e Segurança
 - `Authorization: Bearer <token>` obrigatório para `/mcp`.
@@ -295,14 +303,14 @@ curl -X POST https://mcp.atlascommand.dev/mcp \
   -H "Authorization: Bearer ${MEGABRAIN_TOKEN}" \
   -H "MCP-Protocol-Version: 2026-07-28" \
   -H "Mcp-Method: tools/list" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"megabrain-cli","version":"3.2.0"}}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"megabrain-cli","version":"4.0.0"}}}}'
 ```
 
 ## Observabilidade
 
 ### Endpoint /metrics
 - `GET /metrics`: ASGI, sem auth, formato Prometheus `text/plain; version=0.0.4`.
-- Métricas expostas:
+- Métricas expostas (nomes históricos no processo; a tool de produto é `atlas.get_usage`):
   - `megabrain_tool_calls_total{tool,arm,outcome,error_code}`
   - `megabrain_arm_calls_total{arm}`
   - `megabrain_errors_total`
@@ -313,7 +321,6 @@ curl -X POST https://mcp.atlascommand.dev/mcp \
   - `megabrain_tool_duration_seconds_total`
 
 ### Notificações de progresso
-Notificação de progresso enviada antes do resultado (sem `id` no JSON-RPC):
 ```json
 {
   "jsonrpc": "2.0",
@@ -328,35 +335,30 @@ Notificação de progresso enviada antes do resultado (sem `id` no JSON-RPC):
 ```
 Ordem obrigatória: progresso antes do resultado.
 
-### Tool get_telemetry_report
-Consulta operacional de telemetria:
+Volumetria de produto:
 ```bash
-megabrain call megabrain.get_telemetry_report '{}'
+megabrain call atlas.get_usage '{"project_id":"proj_alpha"}'
 ```
-Retorno: `total_calls`, `total_errors`, `tool_distribution`, `uptime_seconds`.
-
-### Limites e garantias
-- Limite: contadores vivos vs snapshot; sem SLA sem medição.
+Retorno: `volumetrics` (`artifact_bytes`, `artifact_count`, `verification_count`, `missions_count`, `tasks_count`) e `limits` (`max_artifact_bytes`, `max_verifications`, `max_concurrent_tasks` = null).
+Contadores vivos vs snapshot; sem SLA sem medição.
+Campos de telemetria histórica (`total_calls`, `total_errors`, `tool_distribution`, `uptime_seconds`) não são a tool v1.
 
 ## Contrato de erro
 
-### Formas de resultado
 Resultados operacionais admitem: `status:"completed"` (sucesso), `status:"error"`, `isError:true`, `structuredContent` com `status/error_code`, e content text JSON.
 
-Exemplo de sucesso:
 ```json
 {"status":"completed"}
 ```
 
-Exemplo de erro:
 ```json
 {"status":"error","error_code":"INVALID_ENDPOINT"}
 ```
 
-### Formato de error_code
 O campo `error_code` bounded segue a regex `^[A-Z][A-Z0-9_]{0,63}$`. Qualquer valor ausente ou malformado cai em `TOOL_ERROR` no outcome SDK.
 
 Códigos documentados:
+
 - `INVALID_ARGUMENT`
 - `INVALID_ENDPOINT`
 - `NO_EXECUTABLE_ROUTE`
@@ -370,6 +372,7 @@ Códigos documentados:
 - `DEPENDENCY_BLOCKED`
 - `LOCK_ACQUISITION_FAILED`
 - `TIMEOUT_EXCEEDED`
+- `VERIFICATION_REQUIRED`
+- `UNEXPECTED_ARGUMENT`
 
-### Regra businessFail (CLI)
 A regra `businessFail` (CLI) define exit 1 para `isError`, `status:error` top-level, `structuredContent.status:error`, `structuredContent.error_code` não vazio, ou content text JSON com `status:error`/`error_code` não vazio; exit 0 em texto não-JSON/saudável.

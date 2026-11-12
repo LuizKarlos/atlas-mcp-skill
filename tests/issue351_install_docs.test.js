@@ -12,8 +12,8 @@ test('INSTALL_NO_PUBLIC', () => {
   assert.match(readme, /publicação pública ainda não existe.*não foi executada/i);
   assert.match(readme, /npm run release:pack/);
   assert.match(readme, /sha256sum -c/);
-  assert.match(readme, /npm install -g \.\/dist\/megabrain-cli-3\.2\.0\.tgz/);
-  assert.doesNotMatch(readme, /npm install -g dist\/megabrain-cli-3\.2\.0\.tgz/);
+  assert.match(readme, /npm install -g \.\/dist\/megabrain-cli-4\.0\.0\.tgz/);
+  assert.doesNotMatch(readme, /npm install -g dist\/megabrain-cli-4\.0\.0\.tgz/);
   assert.match(readme, /MEGABRAIN_ENDPOINT/);
   assert.match(readme, /rollback por reinstalar versão anterior/i);
   assert.doesNotMatch(readme, /npm install -g @megabrain\/cli/);
@@ -28,6 +28,6 @@ test('INSTALL_SCRIPTS', () => {
 });
 
 test('INSTALL_VERSION', () => {
-  assert.match(readme, /3\.2\.0/);
+  assert.match(readme, /4\.0\.0/);
   assert.match(readme, /megabrain --version/);
 });

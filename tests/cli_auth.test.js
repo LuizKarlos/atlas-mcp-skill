@@ -65,7 +65,7 @@ test('1. Permissoes de arquivo credentials.json (0600) e diretorio (0700)', asyn
   }
 });
 
-test('2. Chamadas de bin/megabrain.js com --version, --help, status --json, call megabrain.health', async () => {
+test('2. Chamadas de bin/megabrain.js com --version, --help, status --json, call atlas.health', async () => {
   // --version, -v, version
   const v1 = await runCliAsync(['--version']);
   assert.equal(v1.status, 0);
@@ -150,18 +150,18 @@ test('2. Chamadas de bin/megabrain.js com --version, --help, status --json, call
     const fRes = await runCliAsync(['status', '--json', '--endpoint', fbEndpoint], { MEGABRAIN_TOKEN: 'secret-agent-token' });
     assert.equal(fRes.status, 0);
     JSON.parse(fRes.stdout);
-    const healthCall = fbCalls.find(c => c.tool === 'megabrain.health');
-    assert.ok(healthCall, 'fallback must call canonical megabrain.health');
+    const healthCall = fbCalls.find(c => c.tool === 'atlas.health');
+    assert.ok(healthCall, 'fallback must call canonical atlas.health');
     assert.equal(healthCall.auth, 'Bearer secret-agent-token');
 
     const cRes = await runCliAsync([
-      'call', 'megabrain.health', '{}',
+      'call', 'atlas.health', '{}',
       '--endpoint', mockEndpoint,
       '--json'
     ], { MEGABRAIN_TOKEN: 'secret-agent-token' });
     assert.equal(cRes.status, 0);
     const parsedCall = JSON.parse(cRes.stdout);
-    assert.equal(parsedCall.tool, 'megabrain.health');
+    assert.equal(parsedCall.tool, 'atlas.health');
     assert.equal(parsedCall.status, 'ok');
     assert.equal(parsedCall.receivedAuth, 'Bearer secret-agent-token');
   } finally {
@@ -246,7 +246,7 @@ test('3. Fallback e prioridade de variaveis de ambiente MEGABRAIN_TOKEN e MEGABR
     // 3b. Prioridade de Token:
     // Caso 1: Apenas arquivo configurado -> deve enviar fileToken
     lastAuth = null;
-    const c1 = await runCliAsync(['call', 'megabrain.test', '{}', '--endpoint', mockEndpoint, '--json'], {
+    const c1 = await runCliAsync(['call', 'atlas.health', '{}', '--endpoint', mockEndpoint, '--json'], {
       ...envDefaults,
       MEGABRAIN_TOKEN: '',
     });
@@ -255,7 +255,7 @@ test('3. Fallback e prioridade de variaveis de ambiente MEGABRAIN_TOKEN e MEGABR
 
     // Caso 2: Env var setada -> deve sobrepor arquivo
     lastAuth = null;
-    const c2 = await runCliAsync(['call', 'megabrain.test', '{}', '--endpoint', mockEndpoint, '--json'], {
+    const c2 = await runCliAsync(['call', 'atlas.health', '{}', '--endpoint', mockEndpoint, '--json'], {
       ...envDefaults,
       MEGABRAIN_TOKEN: 'token-from-env',
     });
@@ -293,7 +293,7 @@ test('4. Codigos de saida de erro quando argumentos invalidos sao passados', asy
   assert.equal(r2.status, 1, 'call without tool name should exit with code 1');
   assert.match(r2.stderr, /Tool name required/);
 
-  const r3 = await runCliAsync(['call', 'megabrain.some_tool', '{not-json']);
+  const r3 = await runCliAsync(['call', 'atlas.health', '{not-json']);
   assert.equal(r3.status, 1, 'call with malformed JSON should exit with code 1');
   assert.match(r3.stderr, /Invalid JSON arguments/);
 
@@ -334,8 +334,8 @@ test('6. setup --write-mcp grava megabrain.mcp.json sem token plaintext', async 
     const r2 = await runCliAsync(['setup', '--dest', tmp, '--write-mcp', '--endpoint', 'http://127.0.0.1:65534', '--json'], { MEGABRAIN_TOKEN: 'sec1' });
     assert.equal(fs.existsSync(cfg), true);
     const data = JSON.parse(fs.readFileSync(cfg, 'utf8'));
-    assert.equal(data.mcpServers.megabrain.url, 'http://127.0.0.1:65534');
-    assert.equal(data.mcpServers.megabrain.headers.Authorization, 'Bearer ${MEGABRAIN_TOKEN}');
+    assert.equal(data.mcpServers.atlas.url, 'http://127.0.0.1:65534');
+    assert.equal(data.mcpServers.atlas.headers.Authorization, 'Bearer ${MEGABRAIN_TOKEN}');
     assert.ok(!r1.stdout.includes('sec1') && !r2.stdout.includes('sec1') && !JSON.stringify(data).includes('sec1'));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
