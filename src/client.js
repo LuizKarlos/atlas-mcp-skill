@@ -19,7 +19,7 @@ async function sendRpc(method, params = {}, options = {}) {
   if (method === "tools/call" && params.name) headers["Mcp-Name"] = params.name;
   params._meta = { ...(params._meta || {}), "io.modelcontextprotocol/protocolVersion": "2026-07-28" };
   params._meta["io.modelcontextprotocol/clientCapabilities"] = params._meta["io.modelcontextprotocol/clientCapabilities"] || { tools: {} };
-  params._meta["io.modelcontextprotocol/clientInfo"] = params._meta["io.modelcontextprotocol/clientInfo"] || { name: "megabrain-cli", version: "3.2.0" };
+  params._meta["io.modelcontextprotocol/clientInfo"] = params._meta["io.modelcontextprotocol/clientInfo"] || { name: "megabrain-cli", version: "4.0.0" };
 
   const id = Date.now();
   const res = await fetch(endpoint, {
@@ -90,5 +90,5 @@ export async function checkHealth(options = {}) {
   } catch {
     // fallback to tool/ping if /health route is unreachable
   }
-  return callTool("megabrain.health", {}, options);
+  return callTool("atlas.health", {}, options);
 }

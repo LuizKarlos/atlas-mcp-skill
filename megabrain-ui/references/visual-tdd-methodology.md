@@ -1,13 +1,13 @@
 # Visual TDD Methodology Specification
 
-Governs headless visual test-driven development and layout verification via `@megabrain/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+Governs headless visual test-driven development and layout verification in the local harness; Atlas only stores uploaded bytes (`https://mcp.atlascommand.dev/mcp`).
 
 ## Headless Visual TDD Lifecycle
 
 Enforces deterministic RED-GREEN cycles before and during UI implementation:
 - **RED Gate**: Author visual assertions against target DOM nodes, layout geometries, and accessibility tree before HTML/CSS changes.
-- **Visual Capture (`megabrain_playwright_capture`)**: Renders DOM in headless browser, producing pixel-accurate snapshots, bounding boxes, and computed styles.
-- **Deterministic Assertion (`megabrain_summarize_visual_tdd`)**: Mechanically validates 100% pass criteria across contrast, typography, spacing, and DOM hierarchy.
+- **Visual Capture (local Playwright)**: Renders DOM in headless browser, producing pixel-accurate snapshots, bounding boxes, and computed styles.
+- **Deterministic Assertion (local visual assertions)**: Mechanically validates 100% pass criteria across contrast, typography, spacing, and DOM hierarchy.
 - **GREEN Verification**: Code passes only when violations reach zero (`violations_count == 0`, `status == "pass"`).
 
 ## Structural & Layout Assertions
@@ -17,8 +17,8 @@ Enforces deterministic RED-GREEN cycles before and during UI implementation:
 - **Layout Invariance**: Enforces responsive container boundaries and viewport scaling determinism.
 
 ```bash
-megabrain call megabrain.playwright_capture '{"url":"http://127.0.0.1:8000/fixture.html","viewport":{"width":1280,"height":800}}'
-megabrain call megabrain.summarize_visual_tdd '{"html_content":"<main><h1>Ok</h1></main>"}'
+# local playwright; then atlas.complete_upload '{"url":"http://127.0.0.1:8000/fixture.html","viewport":{"width":1280,"height":800}}'
+# local html_content assertions '{"html_content":"<main><h1>Ok</h1></main>"}'
 ```
 
 Captura usa URL local válida e PNG; summarize_visual_tdd usa html_content. Sem URL remota. Sem SSRF. html/css path não é o contrato.

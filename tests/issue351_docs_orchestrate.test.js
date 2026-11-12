@@ -27,34 +27,32 @@ function extractCalls(markdown) {
 const calls = Object.fromEntries(extractCalls(skill).map(c => [c.tool, c.json]));
 
 test('DOCS_ORCH_CONTRACT', () => {
-  assert.match(skill, /megabrain\.orchestrate/);
-  assert.match(skill, /prompt/);
-  assert.match(skill, /idempotency_key/);
-  assert.match(skill, /workspace_root/);
-  assert.match(skill, /finalize_mode/);
+  assert.match(skill, /atlas\.create_mission/);
+  assert.match(skill, /atlas\.claim_task/);
+  assert.match(skill, /atlas\.request_verification/);
+  assert.match(skill, /atlas\.export_evidence/);
   assert.doesNotMatch(skill, /budget_tokens/);
   assert.doesNotMatch(docs, new RegExp(['Luiz', 'Karlos'].join('')));
-  const orch = calls['megabrain.orchestrate'];
-  assert.ok(orch && orch.prompt && orch.idempotency_key && orch.workspace_root && orch.finalize_mode);
+  const mission = calls['atlas.create_mission'];
+  assert.ok(mission && mission.project_id && mission.mission_id && Array.isArray(mission.tasks));
   for (const c of extractCalls(skill)) {
     assert.ok(!('budget_tokens' in c.json) && !('max_concurrency' in c.json));
+    assert.ok(!String(c.tool).startsWith('megabrain.'));
   }
 });
 
 test('DOCS_SWARM_BLOCKED', () => {
-  assert.match(skill, /megabrain\.coordinate_mission_swarm/);
   assert.match(docs, /INSUFFICIENT_EVIDENCE/);
   assert.match(docs, /NOT_EXECUTED/);
   assert.doesNotMatch(skill, /max_concurrency/);
-  const swarmCall = calls['megabrain.coordinate_mission_swarm'];
-  assert.ok(swarmCall && swarmCall.mission && swarmCall.evidence_bundle);
+  assert.match(swarm, /agent_id/);
 });
 
 test('DOCS_QUALIFIED_NAMES', () => {
-  assert.match(skill, /megabrain\.create_checkpoint/);
-  assert.match(skill, /megabrain\.rollback_checkpoint/);
+  assert.match(skill, /atlas\.begin_upload/);
+  assert.match(skill, /atlas\.submit_task_result/);
   assert.match(life, /MISSION_NOT_FOUND/);
-  assert.match(swarm, /agent_id/);
-  assert.ok(calls['megabrain.create_checkpoint']?.work_id);
-  assert.ok(calls['megabrain.rollback_checkpoint']?.work_id && calls['megabrain.rollback_checkpoint']?.checkpoint_id);
+  assert.ok(calls['atlas.health']);
+  assert.ok(calls['atlas.claim_task']?.project_id);
+  assert.ok(calls['atlas.export_evidence']?.project_id && calls['atlas.export_evidence']?.mission_id);
 });

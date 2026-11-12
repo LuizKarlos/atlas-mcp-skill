@@ -192,10 +192,10 @@ test("EP_SENDRPC_REJECT_BEFORE_FETCH", async () => {
   globalThis.fetch = () => { called = true; throw new Error("fetch called"); };
   try {
     try {
-      await callTool("megabrain.health", {}, { endpoint: "https://user:pass@mcp.example.test/mcp?token=super-secret", token: "tok" });
+      await callTool("atlas.health", {}, { endpoint: "https://user:pass@mcp.example.test/mcp?token=super-secret", token: "tok" });
     } catch (e) { err = e; }
     await assert.rejects(
-      () => callTool("megabrain.health", {}, { endpoint: "https://user:pass@mcp.example.test/mcp?token=super-secret", token: "tok" }),
+      () => callTool("atlas.health", {}, { endpoint: "https://user:pass@mcp.example.test/mcp?token=super-secret", token: "tok" }),
       /userinfo|consulta sensivel/
     );
     assert.equal(called, false);

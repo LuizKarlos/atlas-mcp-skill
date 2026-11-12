@@ -16,7 +16,7 @@ const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 test('CLI Execution & Version', () => {
   const binPath = join(repoRoot, 'bin', 'megabrain.js');
   const stdout = execFileSync(process.execPath, [binPath, '--version'], { encoding: 'utf8' }).trim();
-  assert.equal(stdout, '3.2.0');
+  assert.equal(stdout, '4.0.0');
 });
 
 test('DAG Validator Script', () => {

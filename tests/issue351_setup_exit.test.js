@@ -42,7 +42,7 @@ test("SETUP_WRITE_MCP_NO_SECRET", () => {
     const cfg = join(dest, "megabrain.mcp.json");
     assert.equal(fs.existsSync(cfg), true);
     const data = JSON.parse(fs.readFileSync(cfg, "utf8"));
-    assert.equal(data.mcpServers.megabrain.headers.Authorization, "Bearer ${MEGABRAIN_TOKEN}");
+    assert.equal(data.mcpServers.atlas.headers.Authorization, "Bearer ${MEGABRAIN_TOKEN}");
     assert.ok(!result.stdout.includes("sec-write"));
     assert.ok(!JSON.stringify(data).includes("sec-write"));
   } finally {

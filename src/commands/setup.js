@@ -46,14 +46,14 @@ export async function run({ positionals = [], flags = {} } = {}) {
     const rulesDir = path.join(cursorDir, "rules");
     fs.mkdirSync(rulesDir, { recursive: true });
     const rulePath = path.join(rulesDir, "megabrain.mdc");
-    if (!fs.existsSync(rulePath)) fs.writeFileSync(rulePath, "# MegaBrain Rules\nUse MegaBrain MCP tools.\n");
+    if (!fs.existsSync(rulePath)) fs.writeFileSync(rulePath, "# Atlas Rules\nUse Atlas MCP tools (atlas.*).\n");
   }
   if (fs.existsSync(path.join(process.cwd(), ".vscode"))) harnesses.push(".vscode");
   if (fs.existsSync(path.join(os.homedir(), ".hermes"))) harnesses.push(".hermes");
 
   const mcpConfig = {
     mcpServers: {
-      megabrain: {
+      atlas: {
         url: endpoint,
         headers: token ? { Authorization: "Bearer ${MEGABRAIN_TOKEN}" } : {}
       }

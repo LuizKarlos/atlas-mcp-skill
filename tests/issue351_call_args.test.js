@@ -17,26 +17,26 @@ function assertRejected(result, message) {
 }
 
 test("CALL_REJECT_BARE: bare tool name without megabrain. prefix is rejected", () => {
-  assertRejected(runCli(["call", "health", "{}"]), /Tool name must be megabrain\.<tool>/);
+  assertRejected(runCli(["call", "health", "{}"]), /Tool name must be atlas\.<tool>/);
 });
 
 test("CALL_REJECT_ARRAY: array arguments are rejected before the network call", () => {
-  assertRejected(runCli(["call", "megabrain.health", "[]"]), /Arguments must be a JSON object/);
+  assertRejected(runCli(["call", "atlas.health", "[]"]), /Arguments must be a JSON object/);
 });
 
 test("CALL_REJECT_NULL: null arguments are rejected before the network call", () => {
-  assertRejected(runCli(["call", "megabrain.health", "null"]), /Arguments must be a JSON object/);
+  assertRejected(runCli(["call", "atlas.health", "null"]), /Arguments must be a JSON object/);
 });
 
 test("CALL_VALIDATE_TOOL_NAME: matrix of accepted and rejected tool names", () => {
-  for (const ok of ["megabrain.health", "megabrain_health", "megabrain.inspect_work"]) {
+  for (const ok of ["atlas.health", "atlas_health", "atlas.get_mission"]) {
     assert.doesNotThrow(() => validateToolName(ok));
   }
-  for (const bad of ["megabrain.", "megabrain..health", "megabrain.health.", "health", ""]) {
-    assert.throws(() => validateToolName(bad), /Tool name must be megabrain\.<tool>/);
+  for (const bad of ["atlas.", "atlas..health", "atlas.health.", "health", "megabrain.health", ""]) {
+    assert.throws(() => validateToolName(bad), /Tool name must be atlas\.<tool>/);
   }
 });
 
 test("CALL_REJECT_EMPTY_STRING: explicit empty string arguments are rejected before the network call", () => {
-  assertRejected(runCli(["call", "megabrain.health", ""]), /Invalid JSON arguments/);
+  assertRejected(runCli(["call", "atlas.health", ""]), /Invalid JSON arguments/);
 });

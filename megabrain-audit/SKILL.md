@@ -1,55 +1,55 @@
 ---
 name: megabrain-audit
-version: "3.2.0"
-description: "Export Merkle audit ledgers, verify Ed25519 cryptographic receipts, and execute deterministic time-travel replays."
-allowed-tools: ["mcp__megabrain__*", "terminal"]
+version: "4.0.0"
+description: "Export Atlas evidence packs and verify local SHA-256 chains; Ed25519 stays on the server."
+allowed-tools: ["mcp__atlas__*", "terminal"]
 ---
 
-# MegaBrain Audit
+# Atlas Audit
 
-Export Merkle audit ledgers, verify Ed25519 cryptographic receipts, and execute deterministic replays via MegaBrain MCP.
+Evidence lives on Atlas. `atlas.export_evidence` returns receipts, ledger blocks, and `chain_verified`. Local `scripts/merkle_verify.js` checks SHA-256 links only.
 
 ## When to Use
 
-- Exporting SHA-256 chained audit ledgers (`export_audit_ledger`).
-- Packaging verifiable evidence bundles with artifacts and receipts (`export_evidence_pack`).
-- Verifying asymmetric Ed25519 receipts for subtask execution gates (`verify_subtask`).
-- Executing deterministic forensic time-travel replays across state transitions (`time_travel_replay`).
-- Validating offline ledger block integrity via `scripts/merkle_verify.js`.
+- Need a receipt the sandbox cannot forge.
+- Checking a downloaded ledger file offline.
+- Proving `chain_verified` after a verified mission.
 
 ## NOT for
 
-- End-to-end sovereign mission orchestration or swarm checkpoints (`megabrain-orchestrate`).
-- DAG task decomposition, topological wave scheduling, or graph auto-healing (`megabrain-pipeline`).
-- Headless visual TDD, CSS validation, or WCAG accessibility audits (`megabrain-ui`).
+- End-to-end claim/verify (`megabrain-orchestrate`).
+- DAG create (`megabrain-pipeline`).
+- Headless visual TDD (`megabrain-ui`).
+- Calling `megabrain.export_audit_ledger`, `export_evidence_pack`, `time_travel_replay`, `verify_subtask`.
+- Time-travel / checkpoint (removed in v1).
 
-## Workflow & CLI
+## Workflow
 
-Execute via `megabrain call` com nome qualificado e JSON objeto. O parser rejeita JSON que não seja objeto.
+Execute via `megabrain call` with a JSON object. The parser rejects non-objects.
 
 ```bash
-# 1. Export soberano do ledger. Sem chave válida o kernel falha fechado.
-megabrain call megabrain.export_audit_ledger '{"work_id":"work_local_1"}'
+# 1. Export soberano. Sem chave válida o kernel falha fechado.
+megabrain call atlas.export_evidence '{"project_id":"proj_alpha","mission_id":"mis_hold"}'
 
 # 2. merkle_verify.js verifica SOMENTE a cadeia local SHA-256. Não verifica Ed25519 nem root soberano.
 # Referência/arquivo local não é assinatura verificada.
 node scripts/merkle_verify.js ledger.json
 
-# 3. Evidence pack soberano com receipts. Mock/parser não é prova live.
-megabrain call megabrain.export_evidence_pack '{"work_id":"work_local_1"}'
+# 3. Evidence pack is export_evidence. Mock/parser não é prova live.
+megabrain call atlas.get_verification '{"project_id":"proj_alpha","run_id":"run_1"}'
 
 # 4. Replay usa JSON objeto, não flags. Envelope/receipts/replay seguem o schema real.
-megabrain call megabrain.time_travel_replay '{"work_id":"work_local_1","target_event_id":"evt_42"}'
-megabrain call megabrain.time_travel_replay '{"work_id":"work_local_1","target_timestamp":1790000000.0}'
+# Atlas has no time_travel_replay. Reconstruct from exported blocks locally.
 ```
+
+Índice de bloco: `typeof number` e `Number.isSafeInteger`; strings/null/float/unsafe são rejeitados.
+Envelope aceito: array puro ou `{blocks:[...]}`; qualquer chave extra (attestation/receipt/certificate/merkle_root/signature) é `unsupported` no script local.
 
 ## Cryptographic Invariants & Audit Guarantees
 
 - **Hash Chain Continuity**: Each block enforces `hash == SHA-256(canonical_json(block - hash))` and links to `previous_hash`.
 - **Non-Repudiation**: Verification receipts require valid Ed25519 signatures from trusted verifier keys.
 - **Fail-Closed Verification**: Any hash divergence, malformed payload, or broken link halts downstream validation.
-- Índice de bloco: `typeof number` e `Number.isSafeInteger`; strings/null/float/unsafe são rejeitados.
-- Envelope aceito: array puro ou `{blocks:[...]}`; qualquer chave extra (attestation/receipt/certificate/merkle_root/signature) é `unsupported`.
 
 ## References
 

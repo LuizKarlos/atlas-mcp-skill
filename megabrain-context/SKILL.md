@@ -1,45 +1,46 @@
 ---
 name: megabrain-context
-version: "3.2.0"
-description: "Virtualize codebase context via AST slicing, extract minimal packages (pacotes mínimos delimitados, sem teto prometido), and synthesize strict OpenAPI 3.1 contracts."
-allowed-tools: ["mcp__megabrain__*", "terminal"]
+version: "4.0.0"
+description: "Slice local AST outlines and upload bytes to Atlas; no server-side AST or OpenAPI tools."
+allowed-tools: ["mcp__atlas__*", "terminal"]
 ---
 
-# MegaBrain Context
+# Atlas Context
 
-Virtualize codebase context via AST slicing, assemble minimal context packages (pacotes mínimos delimitados, sem teto prometido), and synthesize strict OpenAPI 3.1 contracts via MegaBrain MCP.
+AST slicing and OpenAPI drafts run in this harness. Atlas stores the bytes you upload. There is no `slice_ast_context` or `synthesize_backend_contract` on the server.
 
 ## When to Use
 
-- Virtualizing codebase context via structural AST slicing (`slice_ast_context`).
-- Extracting surgical, minimal context packages (pacotes mínimos delimitados, sem teto prometido) for subtasks (`dispatch_subtask`).
-- Synthesizing strict OpenAPI 3.1 backend contracts and mock fixtures (`synthesize_backend_contract`).
-- Performing fast offline AST outline extraction via `scripts/ast_slice.js`.
+- Need a local outline before claiming a task.
+- Need Atlas to hash a snapshot or source bundle (`atlas.begin_upload` / `atlas.complete_upload`).
+- Building an OpenAPI 3.1 file locally, then uploading it.
 
 ## NOT for
 
-- End-to-end sovereign mission orchestration or swarm checkpoints (`megabrain-orchestrate`).
-- DAG task decomposition, topological waves, or graph healing (`megabrain-pipeline`).
-- Headless visual TDD, CSS validation, or WCAG accessibility audits (`megabrain-ui`).
+- End-to-end claim/verify (`megabrain-orchestrate`).
+- DAG create (`megabrain-pipeline`).
+- Headless visual TDD (`megabrain-ui`).
+- Calling `megabrain.slice_ast_context`, `dispatch_subtask`, `synthesize_backend_contract`.
 
-## Workflow & CLI
+## Workflow
 
-Execute via `megabrain call` com nome qualificado e JSON objeto. O parser rejeita JSON que não seja objeto.
+Execute via `megabrain call` with a JSON object. The parser rejects non-objects.
 
 ```bash
-# 1. AST Python no servidor. Não é o outline local.
-megabrain call megabrain.slice_ast_context '{"source_code":"def foo():\n    return 1","language":"python","target_name":"foo"}'
+# 1. AST Python no servidor não existe. Outline local:
+node scripts/ast_slice.js src/server.ts
 
 # 2. ast_slice.js é outline local limitado (regex). Preserva interface TypeScript; não é AST semântico.
 # Sem flags de JSON. Mock/parser não é prova live. Sem prometer teto de tokens sem medir.
-node scripts/ast_slice.js src/server.ts
 
-# 3. Dispatch com scope explícito. work_id/task_id reais já criados.
-megabrain call megabrain.dispatch_subtask '{"work_id":"work_local_1","task_id":"t1","allowed_scope":{"files":["src/server.ts"],"read_only":true}}'
+# 3. Upload the slice or snapshot. work_id/task_id reais já criados via Atlas.
+megabrain call atlas.begin_upload '{"project_id":"proj_alpha","mission_id":"mis_hold","task_id":"t_impl","execution_id":"ex_1","lease_id":"lease_1","fence_token":1,"nonce":"n1"}'
+megabrain call atlas.complete_upload '{"project_id":"proj_alpha","session_id":"up_1","data_text":"export function foo(): void {}"}'
 
-# 4. OpenAPI 3.1 com JSON objeto, não flags.
-megabrain call megabrain.synthesize_backend_contract '{"operation_id":"getUser","path":"/users/{id}","method":"get"}'
+# 4. OpenAPI 3.1 com JSON objeto, não flags — write the file locally, then upload.
 ```
+
+Dispatch com scope explícito is a harness rule (`allowed_scope`), not an Atlas tool.
 
 ## Context Minification & Contract Invariants
 
