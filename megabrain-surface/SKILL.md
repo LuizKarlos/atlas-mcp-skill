@@ -99,7 +99,7 @@ megabrain call atlas.archive_project '{"project_id":"proj_alpha"}'
 Assinatura: `atlas.register_check_manifest(project_id, manifest_id, manifest_payload)`.
 Limite: adapters tipados; sem comando livre.
 ```bash
-megabrain call atlas.register_check_manifest '{"project_id":"proj_alpha","manifest_id":"man_py","manifest_payload":{"adapter":"python.pytest","checks":[{"id":"unit","command":["python","-m","pytest","-q"]}]}}'
+megabrain call atlas.register_check_manifest '{"project_id":"proj_alpha","manifest_id":"man_py","manifest_payload":{"checks":[{"name":"unit","adapter":"python.pytest","args":["-q"]}]}}'
 ```
 
 ## atlas.list_check_manifests
@@ -180,7 +180,7 @@ megabrain call atlas.complete_upload '{"project_id":"proj_alpha","session_id":"u
 Assinatura: `atlas.request_verification(project_id, mission_id, task_id, execution_id, snapshot_b64, image_digest=None)`.
 Limite: cria run `PENDING`. O cliente não grava o resultado. Worker Docker assina.
 ```bash
-megabrain call atlas.request_verification '{"project_id":"proj_alpha","mission_id":"mis_hold","task_id":"t_impl","execution_id":"ex_1","snapshot_b64":"H4sIAAAAAAAAA+3BAQEAAACCoPVPbQwfoAAAAAAAAAAAAAAAAAAAAIC3AYbORR0KAAAA"}'
+megabrain call atlas.request_verification '{"project_id":"proj_alpha","mission_id":"mis_hold","task_id":"t_impl","execution_id":"ex_1","snapshot_b64":"UEsDBBQAAAAAAD19bF2iim3vFwAAABcAAAAIAAAAY2hlY2sucHlpbXBvcnQgc3lzCnN5cy5leGl0KDApClBLAQIUAxQAAAAAAD19bF2iim3vFwAAABcAAAAIAAAAAAAAAAAAAACAAQAAAABjaGVjay5weVBLBQYAAAAAAQABADYAAAA9AAAAAAA="}'
 ```
 
 ## atlas.get_verification

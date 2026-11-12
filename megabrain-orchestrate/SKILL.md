@@ -40,7 +40,7 @@ megabrain call atlas.health '{}'
 megabrain call atlas.create_project '{"name":"Alpha"}'
 
 # 3. Typed check manifest. No free-form shell.
-megabrain call atlas.register_check_manifest '{"project_id":"proj_alpha","manifest_id":"man_py","manifest_payload":{"adapter":"python.pytest","checks":[{"id":"unit","command":["python","-m","pytest","-q"]}]}}'
+megabrain call atlas.register_check_manifest '{"project_id":"proj_alpha","manifest_id":"man_py","manifest_payload":{"checks":[{"name":"unit","adapter":"python.pytest","args":["-q"]}]}}'
 
 # 4. Acyclic DAG. prompt/idempotency_key/workspace_root are not Atlas fields.
 megabrain call atlas.create_mission '{"project_id":"proj_alpha","mission_id":"mis_hold","tasks":[{"task_id":"t_impl","manifest_id":"man_py"},{"task_id":"t_review"}],"dependencies":[{"task_id":"t_review","depends_on_task_id":"t_impl"}]}'
@@ -53,7 +53,7 @@ megabrain call atlas.begin_upload '{"project_id":"proj_alpha","mission_id":"mis_
 megabrain call atlas.complete_upload '{"project_id":"proj_alpha","session_id":"up_1","data_text":"ok"}'
 
 # 7. Snapshot the work. Worker signs. Client never writes the verdict.
-megabrain call atlas.request_verification '{"project_id":"proj_alpha","mission_id":"mis_hold","task_id":"t_impl","execution_id":"ex_1","snapshot_b64":"H4sIAAAAAAAAA+3BAQEAAACCoPVPbQwfoAAAAAAAAAAAAAAAAAAAAIC3AYbORR0KAAAA"}'
+megabrain call atlas.request_verification '{"project_id":"proj_alpha","mission_id":"mis_hold","task_id":"t_impl","execution_id":"ex_1","snapshot_b64":"UEsDBBQAAAAAAD19bF2iim3vFwAAABcAAAAIAAAAY2hlY2sucHlpbXBvcnQgc3lzCnN5cy5leGl0KDApClBLAQIUAxQAAAAAAD19bF2iim3vFwAAABcAAAAIAAAAAAAAAAAAAACAAQAAAABjaGVjay5weVBLBQYAAAAAAQABADYAAAA9AAAAAAA="}'
 megabrain call atlas.get_verification '{"project_id":"proj_alpha","run_id":"run_1"}'
 
 # 8. Same lease/fence/nonce. Then export.
