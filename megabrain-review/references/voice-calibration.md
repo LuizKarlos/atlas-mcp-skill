@@ -16,9 +16,11 @@ Monitors syntactic and structural flow to avoid robotic monotony:
 - **Structural Rhythm**: Balances prose paragraphs with structured markdown tables and bulleted constraints.
 - **Assertive Vocabulary Index**: Penalizes weak hedges ("talvez", "possivelmente", "parece que") in favor of definitive statements.
 
-```bash
-megabrain call megabrain.voice_calibrate '{"text":"Output text","author_sample":"Canonical text sample"}'
-megabrain call megabrain.readability_score '{"text":"Technical document content"}'
+Voice and readability are local in the harness. There is no MCP tool for them.
+
+```text
+{"text":"Output text","author_sample":"Canonical text sample"}
+{"text":"Technical document content"}
 ```
 
 JSON objeto, não flags `--text`. Mock/parser não é prova live.

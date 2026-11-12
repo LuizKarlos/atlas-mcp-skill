@@ -19,8 +19,10 @@ Scans text against humanizer heuristics to eliminate conversational fluff, clich
 | **Trope Metaphors** | *"Vamos mergulhar profundamente nesta análise..."* | *"Analisando os seguintes pontos:"* |
 | **Hedging Fillers** | *"É importante notar que isto serve como um testamento..."* | *"Isto demonstra que..."* |
 
-```bash
-megabrain call megabrain.anti_slop_lint '{"text":"Direct assertion without filler."}'
+Lint is local in the harness. There is no MCP tool for it.
+
+```text
+{"text":"Direct assertion without filler."}
 ```
 
 JSON objeto, não flags `--text`.

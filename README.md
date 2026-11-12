@@ -2,6 +2,8 @@
 
 Pacote de skills e instalador mínimo para o servidor Atlas v1 (26 tools `atlas.*`).
 
+Servidor canônico: [atlascommand.dev](https://atlascommand.dev) (`runtime/atlas_mcp_server.py`, 26 tools `atlas.*`).
+
 O servidor Atlas governa missões, leases, artifacts, verificação Docker e evidência. A LLM executa o trabalho no próprio harness. Este pacote ensina o contrato MCP atual. Não há aliases para as 36 tools `megabrain.*` removidas.
 
 ## Contrato
