@@ -303,7 +303,7 @@ curl -X POST https://mcp.atlascommand.dev/mcp \
   -H "Authorization: Bearer ${MEGABRAIN_TOKEN}" \
   -H "MCP-Protocol-Version: 2026-07-28" \
   -H "Mcp-Method: tools/list" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"megabrain-cli","version":"4.0.0"}}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"atlas-cli","version":"4.0.0"}}}}'
 ```
 
 ## Observabilidade

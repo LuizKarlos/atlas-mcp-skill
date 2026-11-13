@@ -1,6 +1,6 @@
 # WCAG Target Sizes & Accessibility Specification
 
-Governs touch target sizing and color contrast verification for WCAG 2.1 AA/AAA compliance via `@megabrain/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+Governs touch target sizing and color contrast verification for WCAG 2.1 AA/AAA compliance via `@atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
 
 ## Target Size Compliance (WCAG 2.1 SC 2.5.5 & SC 2.5.8)
 

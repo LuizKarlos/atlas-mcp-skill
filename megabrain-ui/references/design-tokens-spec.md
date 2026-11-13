@@ -1,6 +1,6 @@
 # Design Tokens Specification & CSS Validation
 
-Governs semantic design token architecture and CSS conformance validation via `@megabrain/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+Governs semantic design token architecture and CSS conformance validation via `@atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
 
 ## Canonical Token Architecture (local token lint)
 
