@@ -1,6 +1,6 @@
 # Anti-Slop & Humanization Patterns
 
-Enforces direct, humanized communication and removes synthetic AI tropes via `@atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+Enforces direct, humanized communication and removes synthetic AI tropes via `@cli_atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
 
 ## Automated Linting Protocol (local anti-slop lint)
 
