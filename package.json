@@ -1,5 +1,5 @@
 {
-  "name": "@megabrain/cli",
+  "name": "@atlas/cli",
   "version": "4.0.0",
   "description": "Atlas v1 companion: seven skills and a minimal CLI for 26 atlas.* MCP tools",
   "type": "module",
