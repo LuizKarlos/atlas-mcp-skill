@@ -55,7 +55,7 @@ No Hermes, o servidor chama-se `atlas`. Não instale a skill empacotada do repos
 
 - `dag_validator.js`: acyclicity and waves (`node scripts/dag_validator.js tasks.json`)
 - `merkle_verify.js`: local SHA-256 chain only, not Ed25519 (`node scripts/merkle_verify.js ledger.json`)
-- `ast_slice.js`: local regex outline; not server Python AST (`node scripts/ast_slice.js src/app.js`)
+- `ast_slice.js`: local regex outline — TypeScript multiline interfaces, JS function signatures, Python `def`/`class` (not semantic AST) (`node scripts/ast_slice.js src/server.ts`)
 - `wcag_check.js`: local JSON/flags contrast and target size; not CSS headless (`node scripts/wcag_check.js --fg="#ffffff" --bg="#111827" --width=44 --height=44`)
 
 Estes scripts rodam no harness. Não substituem `atlas.request_verification` nem `atlas.export_evidence`.
