@@ -17,7 +17,13 @@ Enforces deterministic RED-GREEN cycles before and during UI implementation:
 - **Layout Invariance**: Enforces responsive container boundaries and viewport scaling determinism.
 
 ```bash
-# local playwright; then atlas.complete_upload &#x27;{&quot;url&quot;:&quot;http://127.0.0.1:8000/fixture.html&quot;,&quot;viewport&quot;:{&quot;width&quot;:1280,&quot;height&quot;:800}}&#x27;
+# 1. Captura local via loopback: http://127.0.0.1:8000/fixture.html (viewport 1280x800).
+# local playwright http://127.0.0.1:8000/fixture.html --viewport=1280x800
+
+# 2. Confira os magic bytes 89 50 4E 47 e envie o PNG em base64; o Atlas não busca URL.
+megabrain call atlas.complete_upload &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;session_id&quot;:&quot;up_1&quot;,&quot;data_base64&quot;:&quot;&lt;base64_png&gt;&quot;}&#x27;
+
+# 3. Assertions de layout seguem no harness, sobre html_content.
 # local html_content assertions &#x27;{&quot;html_content&quot;:&quot;&lt;main&gt;&lt;h1&gt;Ok&lt;/h1&gt;&lt;/main&gt;&quot;}&#x27;
 ```
 

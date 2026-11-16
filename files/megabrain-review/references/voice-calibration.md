@@ -1,6 +1,6 @@
 # Voice Calibration & Cadence Engineering
 
-Aligns generated documentation and code artifacts with canonical author style via `@cli_atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+Aligns generated documentation and code artifacts with canonical author style in the local harness via `@megabrain/cli`; the Atlas MCP server (`https://mcp.atlascommand.dev/mcp`) only stores the uploaded bytes or records the review via `atlas.*`.
 
 ## Stylistic Alignment (local voice calibrate)
 

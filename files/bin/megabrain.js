@@ -38,7 +38,7 @@ Usage:
   megabrain <command> [options]
 
 Commands:
-  login       Authenticate with MegaBrain MCP server
+  login       Authenticate with Atlas MCP server
   status      Check connection and server status
   call        Execute an MCP tool or pipeline task
   setup       Configure environment and harness integrations

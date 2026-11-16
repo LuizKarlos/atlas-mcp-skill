@@ -31,4 +31,4 @@ Causas:
 
 ## 4. Aceite do companion
 
-Instalação limpa copia as sete pastas e configura endpoint/key sem executar tool. Exemplos passam contra servidor v1 e não citam tool removida. Hermes com `mcp_servers.atlas` descobre 26 names `mcp__atlas__atlas_*`.
+Instalação limpa copia as sete pastas e configura endpoint/key sem executar tool. Exemplos passam contra servidor v1 e não citam tool removida. Hermes com `mcp_servers.atlas` descobre 27 names `mcp__atlas__atlas_*`.

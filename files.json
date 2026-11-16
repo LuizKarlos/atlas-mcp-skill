@@ -4,7 +4,7 @@
     "url": "files/.gitignore",
     "type": "file",
     "text": true,
-    "bytes": 43,
+    "bytes": 48,
     "html_url": "documentos/001.html"
   },
   {
@@ -20,7 +20,7 @@
     "url": "files/README.md",
     "type": "md",
     "text": true,
-    "bytes": 2931,
+    "bytes": 3012,
     "html_url": "documentos/003.html"
   },
   {
@@ -44,7 +44,7 @@
     "url": "files/bin/megabrain.js",
     "type": "js",
     "text": true,
-    "bytes": 2755,
+    "bytes": 2751,
     "html_url": "documentos/006.html"
   },
   {
@@ -172,7 +172,7 @@
     "url": "files/megabrain-review/references/anti-slop-patterns.md",
     "type": "md",
     "text": true,
-    "bytes": 1521,
+    "bytes": 1613,
     "html_url": "documentos/022.html"
   },
   {
@@ -188,7 +188,7 @@
     "url": "files/megabrain-review/references/voice-calibration.md",
     "type": "md",
     "text": true,
-    "bytes": 1393,
+    "bytes": 1485,
     "html_url": "documentos/024.html"
   },
   {
@@ -196,7 +196,7 @@
     "url": "files/megabrain-surface/SKILL.md",
     "type": "md",
     "text": true,
-    "bytes": 15283,
+    "bytes": 16297,
     "html_url": "documentos/025.html"
   },
   {
@@ -212,7 +212,7 @@
     "url": "files/megabrain-ui/references/design-tokens-spec.md",
     "type": "md",
     "text": true,
-    "bytes": 1589,
+    "bytes": 1929,
     "html_url": "documentos/027.html"
   },
   {
@@ -220,7 +220,7 @@
     "url": "files/megabrain-ui/references/visual-tdd-methodology.md",
     "type": "md",
     "text": true,
-    "bytes": 1625,
+    "bytes": 1927,
     "html_url": "documentos/028.html"
   },
   {
@@ -228,7 +228,7 @@
     "url": "files/megabrain-ui/references/wcag-target-sizes.md",
     "type": "md",
     "text": true,
-    "bytes": 1410,
+    "bytes": 1502,
     "html_url": "documentos/029.html"
   },
   {

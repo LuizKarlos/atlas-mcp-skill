@@ -192,9 +192,9 @@ megabrain call atlas.get_verification '{"project_id":"proj_alpha","run_id":"run_
 
 ## atlas.verify_and_attest
 Assinatura: `atlas.verify_and_attest(project_id, files, checks, mission_id=None, task_id=None, manifest_id=None, image_digest=None, wait_timeout_seconds=...)`.
-Limite: fachada transacional — empacota, registra manifesto, cria missão, claim, upload, verifica e exporta evidência em uma chamada. Reutiliza `manifest_id`/`mission_id` quando fornecidos; falha fechada em qualquer etapa.
+Limite: fachada transacional — empacota, registra manifesto, cria missão, claim, upload, verifica e exporta evidência em uma chamada. Reutiliza `manifest_id`/`mission_id` quando fornecidos; falha fechada em qualquer etapa. `checks` é o próprio `manifest_payload.checks`: o array é copiado verbatim para `atlas.register_check_manifest`, então use adapters tipados (`{"name":"unit","adapter":"python.pytest","args":["-q"]}`) e nunca `command` shell livre. Não há conversão de `command` para `adapter`; o input da fachada e o manifesto persistido são o mesmo array.
 ```bash
-megabrain call atlas.verify_and_attest '{"project_id":"proj_alpha","files":[{"path":"check.py","content":"print(1)"}],"checks":[{"name":"smoke","command":"python check.py"}]}'
+megabrain call atlas.verify_and_attest '{"project_id":"proj_alpha","files":[{"path":"test_smoke.py","content":"def test_ok(): assert True"}],"checks":[{"name":"unit","adapter":"python.pytest","args":["-q"]}]}'
 ```
 
 ## atlas.export_evidence
@@ -382,5 +382,7 @@ Códigos documentados:
 - `TIMEOUT_EXCEEDED`
 - `VERIFICATION_REQUIRED`
 - `UNEXPECTED_ARGUMENT`
+
+Origem: o servidor Atlas v1 emite os códigos de domínio (`VERIFICATION_REQUIRED`, `MISSION_NOT_FOUND`, `DEPENDENCY_BLOCKED`, `LOCK_ACQUISITION_FAILED`, `TIMEOUT_EXCEEDED`, `INVALID_ARGUMENT`, `UNEXPECTED_ARGUMENT`, além de `PROJECT_NOT_FOUND`, `MANIFEST_NOT_FOUND`, `EXECUTION_NOT_FOUND` e similares). `INSUFFICIENT_EVIDENCE`, `NOT_EXECUTED` e `NOT_DISPATCHED` seguem na lista retidos na CLI/harness para compatibilidade de parser: eram status do kernel de swarm removido e o servidor v1 não os emite — falta de verificação chega como `VERIFICATION_REQUIRED` (ver `megabrain-orchestrate/references/swarm-coordination.md`).
 
 A regra `businessFail` (CLI) define exit 1 para `isError`, `status:error` top-level, `structuredContent.status:error`, `structuredContent.error_code` não vazio, ou content text JSON com `status:error`/`error_code` não vazio; exit 0 em texto não-JSON/saudável.

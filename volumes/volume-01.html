@@ -3,6 +3,7 @@
 *.log
 .DS_Store
 reports/
+dist
 </pre></section><section><h2>DOCS.md</h2><pre># Documentação — @megabrain/cli (Atlas v1)
 
 Índice único para leitura por agentes. Todos os caminhos são relativos à raiz deste repositório.
@@ -102,7 +103,7 @@ No Hermes, o servidor chama-se `atlas`. Não instale a skill empacotada do repos
 
 - `dag_validator.js`: acyclicity and waves (`node scripts/dag_validator.js tasks.json`)
 - `merkle_verify.js`: local SHA-256 chain only, not Ed25519 (`node scripts/merkle_verify.js ledger.json`)
-- `ast_slice.js`: local regex outline; not server Python AST (`node scripts/ast_slice.js src/app.js`)
+- `ast_slice.js`: local regex outline — TypeScript multiline interfaces, JS function signatures, Python `def`/`class` (not semantic AST) (`node scripts/ast_slice.js src/server.ts`)
 - `wcag_check.js`: local JSON/flags contrast and target size; not CSS headless (`node scripts/wcag_check.js --fg=&quot;#ffffff&quot; --bg=&quot;#111827&quot; --width=44 --height=44`)
 
 Estes scripts rodam no harness. Não substituem `atlas.request_verification` nem `atlas.export_evidence`.
@@ -139,7 +140,7 @@ Causas:
 
 ## 4. Aceite do companion
 
-Instalação limpa copia as sete pastas e configura endpoint/key sem executar tool. Exemplos passam contra servidor v1 e não citam tool removida. Hermes com `mcp_servers.atlas` descobre 26 names `mcp__atlas__atlas_*`.
+Instalação limpa copia as sete pastas e configura endpoint/key sem executar tool. Exemplos passam contra servidor v1 e não citam tool removida. Hermes com `mcp_servers.atlas` descobre 27 names `mcp__atlas__atlas_*`.
 </pre></section><section><h2>SPEC.md</h2><pre># Companion Atlas v1 — contrato
 
 Este pacote ensina a LLM a usar o servidor Atlas ([atlascommand.dev](https://atlascommand.dev)). Não é o servidor.
@@ -205,7 +206,7 @@ Usage:
   megabrain &lt;command&gt; [options]
 
 Commands:
-  login       Authenticate with MegaBrain MCP server
+  login       Authenticate with Atlas MCP server
   status      Check connection and server status
   call        Execute an MCP tool or pipeline task
   setup       Configure environment and harness integrations
@@ -767,7 +768,7 @@ Consenso determinístico não é autorização nem teste GREEN. Sem árbitro LLM
 - Voice calibration and cadence engineering: [references/voice-calibration.md](references/voice-calibration.md)
 </pre></section><section><h2>megabrain-review/references/anti-slop-patterns.md</h2><pre># Anti-Slop &amp; Humanization Patterns
 
-Enforces direct, humanized communication and removes synthetic AI tropes via `@cli_atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+Enforces direct, humanized communication and removes synthetic AI tropes in the local harness via `@megabrain/cli`; the Atlas MCP server (`https://mcp.atlascommand.dev/mcp`) only stores the uploaded bytes or records the review via `atlas.*`.
 
 ## Automated Linting Protocol (local anti-slop lint)
 
@@ -810,7 +811,7 @@ megabrain call atlas.submit_task_review &#x27;{&quot;project_id&quot;:&quot;proj
 ```
 </pre></section><section><h2>megabrain-review/references/voice-calibration.md</h2><pre># Voice Calibration &amp; Cadence Engineering
 
-Aligns generated documentation and code artifacts with canonical author style via `@cli_atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+Aligns generated documentation and code artifacts with canonical author style in the local harness via `@megabrain/cli`; the Atlas MCP server (`https://mcp.atlascommand.dev/mcp`) only stores the uploaded bytes or records the review via `atlas.*`.
 
 ## Stylistic Alignment (local voice calibrate)
 
@@ -1028,9 +1029,9 @@ megabrain call atlas.get_verification &#x27;{&quot;project_id&quot;:&quot;proj_a
 
 ## atlas.verify_and_attest
 Assinatura: `atlas.verify_and_attest(project_id, files, checks, mission_id=None, task_id=None, manifest_id=None, image_digest=None, wait_timeout_seconds=...)`.
-Limite: fachada transacional — empacota, registra manifesto, cria missão, claim, upload, verifica e exporta evidência em uma chamada. Reutiliza `manifest_id`/`mission_id` quando fornecidos; falha fechada em qualquer etapa.
+Limite: fachada transacional — empacota, registra manifesto, cria missão, claim, upload, verifica e exporta evidência em uma chamada. Reutiliza `manifest_id`/`mission_id` quando fornecidos; falha fechada em qualquer etapa. `checks` é o próprio `manifest_payload.checks`: o array é copiado verbatim para `atlas.register_check_manifest`, então use adapters tipados (`{&quot;name&quot;:&quot;unit&quot;,&quot;adapter&quot;:&quot;python.pytest&quot;,&quot;args&quot;:[&quot;-q&quot;]}`) e nunca `command` shell livre. Não há conversão de `command` para `adapter`; o input da fachada e o manifesto persistido são o mesmo array.
 ```bash
-megabrain call atlas.verify_and_attest &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;files&quot;:[{&quot;path&quot;:&quot;check.py&quot;,&quot;content&quot;:&quot;print(1)&quot;}],&quot;checks&quot;:[{&quot;name&quot;:&quot;smoke&quot;,&quot;command&quot;:&quot;python check.py&quot;}]}&#x27;
+megabrain call atlas.verify_and_attest &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;files&quot;:[{&quot;path&quot;:&quot;test_smoke.py&quot;,&quot;content&quot;:&quot;def test_ok(): assert True&quot;}],&quot;checks&quot;:[{&quot;name&quot;:&quot;unit&quot;,&quot;adapter&quot;:&quot;python.pytest&quot;,&quot;args&quot;:[&quot;-q&quot;]}]}&#x27;
 ```
 
 ## atlas.export_evidence
@@ -1219,6 +1220,8 @@ Códigos documentados:
 - `VERIFICATION_REQUIRED`
 - `UNEXPECTED_ARGUMENT`
 
+Origem: o servidor Atlas v1 emite os códigos de domínio (`VERIFICATION_REQUIRED`, `MISSION_NOT_FOUND`, `DEPENDENCY_BLOCKED`, `LOCK_ACQUISITION_FAILED`, `TIMEOUT_EXCEEDED`, `INVALID_ARGUMENT`, `UNEXPECTED_ARGUMENT`, além de `PROJECT_NOT_FOUND`, `MANIFEST_NOT_FOUND`, `EXECUTION_NOT_FOUND` e similares). `INSUFFICIENT_EVIDENCE`, `NOT_EXECUTED` e `NOT_DISPATCHED` seguem na lista retidos na CLI/harness para compatibilidade de parser: eram status do kernel de swarm removido e o servidor v1 não os emite — falta de verificação chega como `VERIFICATION_REQUIRED` (ver `megabrain-orchestrate/references/swarm-coordination.md`).
+
 A regra `businessFail` (CLI) define exit 1 para `isError`, `status:error` top-level, `structuredContent.status:error`, `structuredContent.error_code` não vazio, ou content text JSON com `status:error`/`error_code` não vazio; exit 0 em texto não-JSON/saudável.
 </pre></section><section><h2>megabrain-ui/SKILL.md</h2><pre>---
 name: megabrain-ui
@@ -1278,7 +1281,7 @@ Playwright capture, if you run it locally, uses a loopback URL such as `http://1
 - Design tokens specification: [references/design-tokens-spec.md](references/design-tokens-spec.md)
 </pre></section><section><h2>megabrain-ui/references/design-tokens-spec.md</h2><pre># Design Tokens Specification &amp; CSS Validation
 
-Governs semantic design token architecture and CSS conformance validation via `@cli_atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+Governs semantic design token architecture and CSS conformance validation in the local harness via `@megabrain/cli`; the Atlas MCP server (`https://mcp.atlascommand.dev/mcp`) only stores the uploaded bytes or records the review via `atlas.*`.
 
 ## Canonical Token Architecture (local token lint)
 
@@ -1295,8 +1298,12 @@ Centralizes interface variables into semantic, theme-agnostic tokens:
 - **Fail-Closed Validation**: Rejects stylesheets containing unclosed blocks or unmapped design tokens.
 
 ```bash
-# local css_content; then atlas.complete_upload &#x27;{&quot;action&quot;:&quot;validate&quot;,&quot;css_content&quot;:&quot;:root { --primary: #111827; }&quot;}&#x27;
-# local css_content &#x27;{&quot;css_content&quot;:&quot;.btn { color: var(--primary); }&quot;}&#x27;
+# 1. Validação local no harness: design_tokens lê action e css_content; nada sobe para o Atlas.
+# local { &quot;action&quot;: &quot;validate&quot;, &quot;css_content&quot;: &quot;:root { --primary: #111827; }&quot; }
+# local { &quot;css_content&quot;: &quot;.btn { color: var(--primary); }&quot; }
+
+# 2. Upload do CSS já validado: Atlas calcula o hash das bytes.
+megabrain call atlas.complete_upload &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;session_id&quot;:&quot;up_1&quot;,&quot;data_text&quot;:&quot;:root { --primary: #111827; }&quot;}&#x27;
 ```
 
 `design_tokens` usa `action` e `css_content`. Flags `--validate` e path de CSS não são o contrato.
@@ -1319,14 +1326,20 @@ Enforces deterministic RED-GREEN cycles before and during UI implementation:
 - **Layout Invariance**: Enforces responsive container boundaries and viewport scaling determinism.
 
 ```bash
-# local playwright; then atlas.complete_upload &#x27;{&quot;url&quot;:&quot;http://127.0.0.1:8000/fixture.html&quot;,&quot;viewport&quot;:{&quot;width&quot;:1280,&quot;height&quot;:800}}&#x27;
+# 1. Captura local via loopback: http://127.0.0.1:8000/fixture.html (viewport 1280x800).
+# local playwright http://127.0.0.1:8000/fixture.html --viewport=1280x800
+
+# 2. Confira os magic bytes 89 50 4E 47 e envie o PNG em base64; o Atlas não busca URL.
+megabrain call atlas.complete_upload &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;session_id&quot;:&quot;up_1&quot;,&quot;data_base64&quot;:&quot;&lt;base64_png&gt;&quot;}&#x27;
+
+# 3. Assertions de layout seguem no harness, sobre html_content.
 # local html_content assertions &#x27;{&quot;html_content&quot;:&quot;&lt;main&gt;&lt;h1&gt;Ok&lt;/h1&gt;&lt;/main&gt;&quot;}&#x27;
 ```
 
 Captura usa URL local válida e PNG; summarize_visual_tdd usa html_content. Sem URL remota. Sem SSRF. html/css path não é o contrato.
 </pre></section><section><h2>megabrain-ui/references/wcag-target-sizes.md</h2><pre># WCAG Target Sizes &amp; Accessibility Specification
 
-Governs touch target sizing and color contrast verification for WCAG 2.1 AA/AAA compliance via `@cli_atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+Governs touch target sizing and color contrast verification for WCAG 2.1 AA/AAA compliance in the local harness via `@megabrain/cli`; the Atlas MCP server (`https://mcp.atlascommand.dev/mcp`) only stores the uploaded bytes or records the review via `atlas.*`.
 
 ## Target Size Compliance (WCAG 2.1 SC 2.5.5 &amp; SC 2.5.8)
 
@@ -1347,9 +1360,9 @@ node scripts/wcag_check.js --fg=&quot;#ffffff&quot; --bg=&quot;#111827&quot; --w
 
 WCAG local aceita JSON/flags. Não é auditoria CSS headless. JSON inválido falha fechado.
 </pre></section><section><h2>package.json</h2><pre>{
-  &quot;name&quot;: &quot;@cli_atlas/cli&quot;,
+  &quot;name&quot;: &quot;@megabrain/cli&quot;,
   &quot;version&quot;: &quot;4.0.0&quot;,
-  &quot;description&quot;: &quot;Atlas v1 companion: seven skills and a minimal CLI for 26 atlas.* MCP tools&quot;,
+  &quot;description&quot;: &quot;Atlas v1 companion: seven skills and a minimal CLI for 27 atlas.* MCP tools&quot;,
   &quot;type&quot;: &quot;module&quot;,
   &quot;bin&quot;: {
     &quot;megabrain&quot;: &quot;bin/megabrain.js&quot;
@@ -1950,17 +1963,5 @@ export async function run({ positionals = [], flags = {}, callToolFn = callTool 
     console.log(formatted);
   }
   return result;
-}
-</pre></section><section><h2>src/commands/login.js</h2><pre>import { getToken, getEndpoint, saveConfig } from &quot;../config.js&quot;;
-
-// ponytail: cli token persistence; upgrade to interactive oauth flow when supported
-export async function run({ positionals = [], flags = {} }) {
-  const token = getToken();
-  if (!token) throw new Error(&quot;No token provided. Set MEGABRAIN_TOKEN.&quot;);
-  const effectiveEndpoint = flags.endpoint || getEndpoint();
-  saveConfig({ token, endpoint: effectiveEndpoint });
-  const out = { status: &quot;ok&quot;, token: Boolean(token), endpoint: effectiveEndpoint };
-  console.log(flags.json ? JSON.stringify(out) : `Configured credentials for ${effectiveEndpoint}`);
-  return out;
 }
 </pre></section><!--/email_off--></main></body></html>
