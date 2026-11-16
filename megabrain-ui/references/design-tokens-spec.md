@@ -17,8 +17,12 @@ Centralizes interface variables into semantic, theme-agnostic tokens:
 - **Fail-Closed Validation**: Rejects stylesheets containing unclosed blocks or unmapped design tokens.
 
 ```bash
-# local css_content; then atlas.complete_upload '{"action":"validate","css_content":":root { --primary: #111827; }"}'
-# local css_content '{"css_content":".btn { color: var(--primary); }"}'
+# 1. Validação local no harness: design_tokens lê action e css_content; nada sobe para o Atlas.
+# local { "action": "validate", "css_content": ":root { --primary: #111827; }" }
+# local { "css_content": ".btn { color: var(--primary); }" }
+
+# 2. Upload do CSS já validado: Atlas calcula o hash das bytes.
+megabrain call atlas.complete_upload '{"project_id":"proj_alpha","session_id":"up_1","data_text":":root { --primary: #111827; }"}'
 ```
 
 `design_tokens` usa `action` e `css_content`. Flags `--validate` e path de CSS não são o contrato.
