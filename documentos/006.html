@@ -1,0 +1,87 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>bin/megabrain.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>bin/megabrain.js</h1><!--email_off--><pre>#!/usr/bin/env node
+import { parseArgs } from &#x27;node:util&#x27;;
+import { existsSync, readFileSync } from &#x27;node:fs&#x27;;
+import process from &#x27;node:process&#x27;;
+
+if (typeof process.loadEnvFile === &#x27;function&#x27; &amp;&amp; existsSync(&#x27;.env&#x27;)) {
+  try { process.loadEnvFile(); } catch {}
+}
+
+const pkg = JSON.parse(readFileSync(new URL(&#x27;../package.json&#x27;, import.meta.url), &#x27;utf8&#x27;));
+
+const { values: flags, positionals } = parseArgs({
+  args: process.argv.slice(2),
+  options: {
+    json: { type: &#x27;boolean&#x27; },
+    endpoint: { type: &#x27;string&#x27; },
+    dest: { type: &#x27;string&#x27; },
+    &#x27;write-mcp&#x27;: { type: &#x27;boolean&#x27; },
+    help: { type: &#x27;boolean&#x27;, short: &#x27;h&#x27; },
+    version: { type: &#x27;boolean&#x27;, short: &#x27;v&#x27; },
+  },
+  allowPositionals: true,
+  strict: true,
+});
+if (flags.token !== undefined) { console.error(&#x27;--token is not supported&#x27;); process.exit(1); }
+
+const command = positionals[0];
+
+if (flags.version || command === &#x27;version&#x27;) {
+  console.log(pkg.version);
+  process.exit(0);
+}
+
+if (flags.help || command === &#x27;help&#x27; || !command) {
+  console.log(`MegaBrain CLI v${pkg.version}
+
+Usage:
+  megabrain &lt;command&gt; [options]
+
+Commands:
+  login       Authenticate with MegaBrain MCP server
+  status      Check connection and server status
+  call        Execute an MCP tool or pipeline task
+  setup       Configure environment and harness integrations
+  version     Display CLI version
+  help        Display help information
+
+Options:
+  -h, --help       Show help
+  -v, --version    Show version
+  --json           Output results in JSON format
+  --dest &lt;dir&gt;     Destination directory for setup
+  --write-mcp       Write MCP configuration during setup
+  --endpoint &lt;url&gt; MCP server endpoint (default: $MEGABRAIN_ENDPOINT or https://mcp.atlascommand.dev/mcp)`);
+  process.exit(0);
+}
+
+const SUBCOMMANDS = new Set([&#x27;login&#x27;, &#x27;status&#x27;, &#x27;call&#x27;, &#x27;setup&#x27;]);
+if (!SUBCOMMANDS.has(command)) {
+  console.error(`Unknown command: &#x27;${command}&#x27;. Run &#x27;megabrain --help&#x27; for available commands.`);
+  process.exit(1);
+}
+
+// ponytail: direct file resolution for command modules; upgrade when complex routing needed.
+const candidates = [
+  new URL(`../src/commands/${command}.js`, import.meta.url),
+  new URL(`../src/${command}.js`, import.meta.url),
+];
+const target = candidates.find((url) =&gt; existsSync(url));
+
+if (!target) {
+  console.error(`Command &#x27;${command}&#x27; is not yet implemented.`);
+  process.exit(1);
+}
+
+try {
+  const mod = await import(target.href);
+  const handler = mod.run || mod.default || mod[command];
+  if (typeof handler !== &#x27;function&#x27;) {
+    throw new Error(`Command module &#x27;${command}&#x27; does not export a runnable function.`);
+  }
+  await handler({ positionals: positionals.slice(1), flags });
+} catch (err) {
+  console.error(`Error executing &#x27;${command}&#x27;:`, err.message);
+  process.exit(1);
+}
+</pre><!--/email_off--></main></body></html>

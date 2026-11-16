@@ -1,0 +1,16 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>megabrain-review/references/dual-blind-adjudication.md</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>megabrain-review/references/dual-blind-adjudication.md</h1><!--email_off--><pre># Dual-Blind Review Adjudication
+
+Atlas v1 does not adjudicate reviewers. `atlas.submit_task_review` stores one verdict from a distinct `review_execution_id`. Same API key ⇒ `same_account_review=true`. Documentation must not call this independent or dual-blind.
+
+Local harnesses may still collect multiple reviews:
+
+```json
+{&quot;task_id&quot;:&quot;t1&quot;,&quot;reviews&quot;:[{&quot;reviewer&quot;:&quot;rev_a&quot;,&quot;approved&quot;:true,&quot;score&quot;:0.9,&quot;verdict&quot;:&quot;ACCEPT&quot;,&quot;notes&quot;:&quot;ok&quot;,&quot;rationale&quot;:&quot;gates green&quot;}]}
+```
+
+Campo `approved` é obrigatório no envelope local. Consenso determinístico não é autorização nem teste GREEN. Sem árbitro LLM server-side. Jev é só advisory. nenhum árbitro LLM server-side é despachado automaticamente; a divergência permanece evidência para o orquestrador.
+
+```bash
+megabrain call atlas.submit_task_review &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;,&quot;task_id&quot;:&quot;t_impl&quot;,&quot;execution_id&quot;:&quot;ex_1&quot;,&quot;review_execution_id&quot;:&quot;ex_2&quot;,&quot;verdict&quot;:&quot;ACCEPT&quot;,&quot;rationale&quot;:&quot;gates green&quot;}&#x27;
+```
+</pre><!--/email_off--></main></body></html>

@@ -1,0 +1,115 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_setup_exit.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_setup_exit.test.js</h1><!--email_off--><pre>import assert from &quot;node:assert/strict&quot;;
+import { test } from &quot;node:test&quot;;
+import { spawnSync, spawn } from &quot;node:child_process&quot;;
+import { fileURLToPath } from &quot;node:url&quot;;
+import { dirname, join } from &quot;node:path&quot;;
+import os from &quot;node:os&quot;;
+import fs from &quot;node:fs&quot;;
+import http from &quot;node:http&quot;;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const BIN = join(__dirname, &quot;..&quot;, &quot;bin&quot;, &quot;megabrain.js&quot;);
+
+function runSetup(dest, extra, env) {
+  return spawnSync(process.execPath, [BIN, &quot;setup&quot;, &quot;--json&quot;, &quot;--dest&quot;, dest, ...extra], {
+    encoding: &quot;utf8&quot;,
+    timeout: 8000,
+    env: { ...process.env, ...env }
+  });
+}
+
+test(&quot;SETUP_DEGRADED_EXIT&quot;, () =&gt; {
+  const dest = fs.mkdtempSync(join(os.tmpdir(), &quot;mb376-&quot;));
+  try {
+    const result = runSetup(dest, [&quot;--endpoint&quot;, &quot;http://127.0.0.1:1&quot;], { MEGABRAIN_TOKEN: &quot;sec-offline&quot; });
+    assert.notEqual(result.status, 0);
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.status, &quot;degraded&quot;);
+    assert.equal(parsed.connectivity.connected, false);
+    assert.equal(fs.existsSync(join(dest, &quot;megabrain.mcp.json&quot;)), false);
+    assert.ok(!result.stdout.includes(&quot;sec-offline&quot;));
+  } finally {
+    fs.rmSync(dest, { recursive: true, force: true });
+  }
+});
+
+test(&quot;SETUP_WRITE_MCP_NO_SECRET&quot;, () =&gt; {
+  const dest = fs.mkdtempSync(join(os.tmpdir(), &quot;mb376w-&quot;));
+  try {
+    const result = runSetup(dest, [&quot;--write-mcp&quot;, &quot;--endpoint&quot;, &quot;http://127.0.0.1:1&quot;], { MEGABRAIN_TOKEN: &quot;sec-write&quot; });
+    assert.notEqual(result.status, 0);
+    const cfg = join(dest, &quot;megabrain.mcp.json&quot;);
+    assert.equal(fs.existsSync(cfg), true);
+    const data = JSON.parse(fs.readFileSync(cfg, &quot;utf8&quot;));
+    assert.equal(data.mcpServers.atlas.headers.Authorization, &quot;Bearer ${MEGABRAIN_TOKEN}&quot;);
+    assert.ok(!result.stdout.includes(&quot;sec-write&quot;));
+    assert.ok(!JSON.stringify(data).includes(&quot;sec-write&quot;));
+  } finally {
+    fs.rmSync(dest, { recursive: true, force: true });
+  }
+});
+
+test(&quot;SETUP_HEALTHY_EXIT0&quot;, async () =&gt; {
+  const dest = fs.mkdtempSync(join(os.tmpdir(), &quot;mb376ok-&quot;));
+  const server = http.createServer((req, res) =&gt; {
+    res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+    res.end(JSON.stringify({ status: &quot;READY&quot; }));
+  });
+  await new Promise((resolve) =&gt; server.listen(0, &quot;127.0.0.1&quot;, resolve));
+  const { port } = server.address();
+  try {
+    const result = await new Promise((resolve, reject) =&gt; {
+      const child = spawn(process.execPath, [BIN, &quot;setup&quot;, &quot;--json&quot;, &quot;--dest&quot;, dest, &quot;--endpoint&quot;, `http://127.0.0.1:${port}`], { env: process.env });
+      let stdout = &quot;&quot;;
+      child.stdout.on(&quot;data&quot;, (d) =&gt; { stdout += d; });
+      child.on(&quot;error&quot;, reject);
+      child.on(&quot;close&quot;, (status) =&gt; resolve({ status, stdout }));
+    });
+    assert.equal(result.status, 0);
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.status, &quot;ok&quot;);
+    assert.equal(parsed.connectivity.connected, true);
+  } finally {
+    server.close();
+    fs.rmSync(dest, { recursive: true, force: true });
+  }
+});
+test(&quot;SETUP_READINESS_DEGRADED_EXIT&quot;, async () =&gt; {
+  let currentBody = {};
+  const server = http.createServer((req, res) =&gt; {
+    res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+    res.end(JSON.stringify(currentBody));
+  });
+  await new Promise((r) =&gt; server.listen(0, &quot;127.0.0.1&quot;, r));
+  const { port } = server.address();
+  const cases = [
+    { status: &quot;ERROR&quot; },
+    { status: &quot;DEGRADED&quot; },
+    { status: &quot;NOT_READY&quot; },
+    { status: &quot;READY&quot;, ready: false },
+    { status: &quot;READY&quot;, kernel_ready: false },
+    { status: &quot;READY&quot;, isError: true }
+  ];
+  const dests = [];
+  try {
+    for (const body of cases) {
+      currentBody = body;
+      const dest = fs.mkdtempSync(join(os.tmpdir(), &quot;mb445d-&quot;));
+      dests.push(dest);
+      const res = await new Promise((resolve, reject) =&gt; {
+        const c = spawn(process.execPath, [BIN, &quot;setup&quot;, &quot;--json&quot;, &quot;--dest&quot;, dest, &quot;--endpoint&quot;, `http://127.0.0.1:${port}`], { env: process.env });
+        let out = &quot;&quot;;
+        c.stdout.on(&quot;data&quot;, (d) =&gt; { out += d; });
+        c.on(&quot;error&quot;, reject);
+        c.on(&quot;close&quot;, (status) =&gt; resolve({ status, out }));
+      });
+      assert.notEqual(res.status, 0);
+      assert.equal(JSON.parse(res.out).status, &quot;degraded&quot;);
+    }
+  } finally {
+    server.close();
+    for (const d of dests) fs.rmSync(d, { recursive: true, force: true });
+  }
+});
+</pre><!--/email_off--></main></body></html>

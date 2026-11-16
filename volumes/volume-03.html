@@ -1,0 +1,1076 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Volume 03 — leitura integral</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>Volume 03 — leitura integral</h1><!--email_off--><section><h2>tests/issue351_wcag_argv.test.js</h2><pre>import test from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { spawnSync } from &#x27;node:child_process&#x27;;
+import { mkdtempSync, writeFileSync, rmSync } from &#x27;node:fs&#x27;;
+import { tmpdir } from &#x27;node:os&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { checkWcag } from &#x27;../scripts/wcag_check.js&#x27;;
+
+const SCRIPT = fileURLToPath(new URL(&#x27;../scripts/wcag_check.js&#x27;, import.meta.url));
+const run = (args) =&gt; spawnSync(process.execPath, [SCRIPT, ...args], { encoding: &#x27;utf8&#x27; });
+
+test(&#x27;wcag argv grammar: equivalence, unknown flags, separated values, help, and json&#x27;, () =&gt; {
+  // ponytail: minimal subprocess runner covering argv grammar contract
+  assert.equal(checkWcag({ fg: &#x27;#000000&#x27;, bg: &#x27;#ffffff&#x27; }).valid, true);
+
+  const eq = run([&#x27;--fg=#000&#x27;, &#x27;--bg=#fff&#x27;, &#x27;--width=48&#x27;, &#x27;--json&#x27;]);
+  const sep = run([&#x27;--fg&#x27;, &#x27;#000&#x27;, &#x27;--bg&#x27;, &#x27;#fff&#x27;, &#x27;--width&#x27;, &#x27;48&#x27;, &#x27;--json&#x27;]);
+  assert.equal(eq.status, 0);
+  assert.equal(sep.status, 0);
+  assert.deepEqual(JSON.parse(eq.stdout), JSON.parse(sep.stdout));
+
+  for (const flag of [[&#x27;--foreground=#fff&#x27;], [&#x27;--background&#x27;, &#x27;#fff&#x27;], [&#x27;--typo&#x27;], [&#x27;-x&#x27;]]) {
+    assert.notEqual(run(flag).status, 0);
+  }
+
+  const noFile = run([&#x27;--fg&#x27;, &#x27;#000&#x27;, &#x27;--json&#x27;]);
+  assert.equal(noFile.status, 0);
+
+  const bad = [[&#x27;--fg&#x27;], [&#x27;--fg=&#x27;], [&#x27;--fg&#x27;, &#x27;&quot;&quot;&#x27;], [&#x27;--fg&#x27;, &#x27;--bg&#x27;, &#x27;#fff&#x27;], [&#x27;a.json&#x27;, &#x27;b.json&#x27;], [&#x27;a.json&#x27;, &#x27;--fg&#x27;, &#x27;#000&#x27;], [&#x27;--fg&#x27;, &#x27;#0&#x27;, &#x27;--fg&#x27;, &#x27;#1&#x27;]];
+  for (const b of bad) {
+    assert.notEqual(run(b).status, 0);
+  }
+
+  const help = run([&#x27;--help&#x27;]);
+  const helpFile = run([&#x27;-h&#x27;, &#x27;missing.json&#x27;]);
+  assert.equal(help.status, 0);
+  assert.equal(helpFile.status, 0);
+  assert.match(help.stdout, /Usage:/);
+
+  const tmpDir = mkdtempSync(`${tmpdir()}/wcag-`);
+  const tmpFile = `${tmpDir}/test.json`;
+  try {
+    writeFileSync(tmpFile, JSON.stringify({ fg: &#x27;#000000&#x27;, bg: &#x27;#ffffff&#x27;, width: 44, height: 44 }));
+    const fRes = run([tmpFile, &#x27;--json&#x27;]);
+    assert.equal(fRes.status, 0);
+    assert.equal(JSON.parse(fRes.stdout).valid, true);
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+</pre></section><section><h2>tests/issue351_wcag_file.test.js</h2><pre>import { writeFileSync, mkdtempSync, rmSync } from &#x27;node:fs&#x27;;
+import { join } from &#x27;node:path&#x27;;
+import { tmpdir } from &#x27;node:os&#x27;;
+import { spawnSync } from &#x27;node:child_process&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const SCRIPT = fileURLToPath(new URL(&#x27;../scripts/wcag_check.js&#x27;, import.meta.url));
+const TMP = mkdtempSync(join(tmpdir(), &#x27;wcag_i379_&#x27;));
+
+const run = (args) =&gt; spawnSync(process.execPath, [SCRIPT, &#x27;--json&#x27;, ...args], { encoding: &#x27;utf8&#x27; });
+
+test(&#x27;WCAG_MISSING: nonexistent file fails closed (non-zero, never valid)&#x27;, () =&gt; {
+  const r = run([join(TMP, &#x27;nope.json&#x27;)]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr || &#x27;&#x27;, /ENOENT|no such file/i);
+  assert.doesNotMatch(r.stdout || &#x27;&#x27;, /&quot;valid&quot;:\s*true/);
+});
+
+test(&#x27;WCAG_CSS_FILE: CSS file is not valid JSON, fails closed&#x27;, () =&gt; {
+  const f = join(TMP, &#x27;style.css&#x27;);
+  writeFileSync(f, &#x27;body { color: red }&#x27;);
+  const r = run([f]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr || &#x27;&#x27;, /SyntaxError|Unexpected/i);
+  assert.doesNotMatch(r.stdout || &#x27;&#x27;, /&quot;valid&quot;:\s*true/);
+});
+
+test(&#x27;WCAG_BAD_JSON: malformed JSON fails closed&#x27;, () =&gt; {
+  const f = join(TMP, &#x27;bad.json&#x27;);
+  writeFileSync(f, &#x27;{ fg: &quot;#000&quot;, bg: &quot;#fff&quot; }&#x27;);
+  const r = run([f]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr || &#x27;&#x27;, /SyntaxError|Unexpected/i);
+  assert.doesNotMatch(r.stdout || &#x27;&#x27;, /&quot;valid&quot;:\s*true/);
+});
+
+test(&#x27;WCAG_OK_FLAGS: explicit fg/bg flags still compute a passing result&#x27;, () =&gt; {
+  const r = run([&#x27;--fg=#000000&#x27;, &#x27;--bg=#ffffff&#x27;]);
+  assert.equal(r.status, 0);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.valid, true);
+  assert.equal(out.contrast.passAA, true);
+  assert.equal(out.contrast.ratio, 21);
+  assert.equal(out.targetSize.pass, true);
+});
+
+test(&#x27;WCAG_WHITE_WHITE: white-on-white with target under 44px fails&#x27;, () =&gt; {
+  const f = join(TMP, &#x27;ww.json&#x27;);
+  writeFileSync(f, JSON.stringify({ fg: &#x27;#ffffff&#x27;, bg: &#x27;#ffffff&#x27;, width: 24, height: 24 }));
+  const r = run([f]);
+  assert.notEqual(r.status, 0);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.valid, false);
+  assert.equal(out.contrast.ratio, 1);
+  assert.equal(out.contrast.passAA, false);
+  assert.equal(out.targetSize.pass, false);
+});
+
+test(&#x27;WCAG_INCOMPLETE_JSON: empty object does not inherit green defaults&#x27;, () =&gt; {
+  const f = join(TMP, &#x27;empty.json&#x27;);
+  writeFileSync(f, &#x27;{}&#x27;);
+  const r = run([f]);
+  assert.notEqual(r.status, 0);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.valid, false);
+});
+
+test(&#x27;cleanup&#x27;, () =&gt; { rmSync(TMP, { recursive: true, force: true }); });
+</pre></section><section><h2>tests/issue351_wcag_precision.test.js</h2><pre>import test from &quot;node:test&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { checkWcag, getContrastRatio } from &quot;../scripts/wcag_check.js&quot;;
+
+function oracleLum(hex) {
+  const c = [1, 3, 5].map((i) =&gt; parseInt(hex.slice(i, i + 2), 16) / 255);
+  const lin = c.map((v) =&gt; (v &lt;= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+}
+
+function oracleRatio(fg, bg) {
+  const l1 = oracleLum(fg), l2 = oracleLum(bg);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+test(&quot;caso #070707/#777777 reprova passAA e valid usando razão exata&quot;, () =&gt; {
+  const res = checkWcag({ fg: &quot;#070707&quot;, bg: &quot;#777777&quot; });
+  const ratio = getContrastRatio(&quot;#070707&quot;, &quot;#777777&quot;);
+  const expectedRatio = oracleRatio(&quot;#070707&quot;, &quot;#777777&quot;);
+
+  assert.equal(ratio, expectedRatio);
+  assert.ok(ratio &lt; 4.5);
+  assert.equal(res.contrast.ratio, expectedRatio);
+  assert.equal(res.contrast.passAA, false);
+  assert.equal(res.contrast.passLarge, true);
+  assert.equal(res.valid, false);
+});
+
+test(&quot;oraculo sRGB independente nos limites 4.5 e 3.0 e preservacao de 21 e 1&quot;, () =&gt; {
+  assert.equal(getContrastRatio(&quot;#000000&quot;, &quot;#ffffff&quot;), 21);
+  assert.equal(oracleRatio(&quot;#000000&quot;, &quot;#ffffff&quot;), 21);
+  assert.equal(getContrastRatio(&quot;#ffffff&quot;, &quot;#ffffff&quot;), 1);
+  assert.equal(oracleRatio(&quot;#ffffff&quot;, &quot;#ffffff&quot;), 1);
+
+  const r45Below = oracleRatio(&quot;#070707&quot;, &quot;#777777&quot;);
+  const r45Above = oracleRatio(&quot;#060606&quot;, &quot;#777777&quot;);
+  assert.ok(r45Below &lt; 4.5 &amp;&amp; r45Below &gt;= 4.49);
+  assert.ok(r45Above &gt;= 4.5);
+  assert.equal(checkWcag({ fg: &quot;#070707&quot;, bg: &quot;#777777&quot; }).contrast.passAA, false);
+  assert.equal(checkWcag({ fg: &quot;#060606&quot;, bg: &quot;#777777&quot; }).contrast.passAA, true);
+
+  const r30Below = oracleRatio(&quot;#2e2f2f&quot;, &quot;#777777&quot;);
+  const r30Above = oracleRatio(&quot;#2e2e2e&quot;, &quot;#777777&quot;);
+  assert.ok(r30Below &lt; 3.0 &amp;&amp; r30Below &gt;= 2.99);
+  assert.ok(r30Above &gt;= 3.0);
+  assert.equal(checkWcag({ fg: &quot;#2e2f2f&quot;, bg: &quot;#777777&quot; }).contrast.passLarge, false);
+  assert.equal(checkWcag({ fg: &quot;#2e2e2e&quot;, bg: &quot;#777777&quot; }).contrast.passLarge, true);
+});
+</pre></section><section><h2>tests/issue351_wcag_values.test.js</h2><pre>import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { checkWcag } from &#x27;../scripts/wcag_check.js&#x27;;
+
+test(&#x27;WCAG_VALUES_INVALID_MATRIX: invalid colors and dimensions fail closed without NaN/null&#x27;, () =&gt; {
+  const invalidCases = [
+    { name: &#x27;negativo&#x27;, fg: { r: -1, g: 0, b: 0 }, bg: &#x27;#ffffff&#x27; },
+    { name: &#x27;&gt;255&#x27;, fg: { r: 256, g: 0, b: 0 }, bg: &#x27;#ffffff&#x27; },
+    { name: &#x27;NaN color&#x27;, fg: { r: NaN, g: 0, b: 0 }, bg: &#x27;#ffffff&#x27; },
+    { name: &#x27;Infinity color&#x27;, fg: { r: Infinity, g: 0, b: 0 }, bg: &#x27;#ffffff&#x27; },
+    { name: &#x27;objeto incompleto&#x27;, fg: { r: 255 }, bg: &#x27;#ffffff&#x27; },
+    { name: &#x27;width &quot;Infinity&quot;&#x27;, fg: &#x27;#000000&#x27;, bg: &#x27;#ffffff&#x27;, width: &#x27;Infinity&#x27; },
+    { name: &#x27;width boolean true&#x27;, fg: &#x27;#000000&#x27;, bg: &#x27;#ffffff&#x27;, width: true },
+    { name: &#x27;width boolean false&#x27;, fg: &#x27;#000000&#x27;, bg: &#x27;#ffffff&#x27;, width: false },
+    { name: &#x27;width null&#x27;, fg: &#x27;#000000&#x27;, bg: &#x27;#ffffff&#x27;, width: null },
+    { name: &#x27;width negativa&#x27;, fg: &#x27;#000000&#x27;, bg: &#x27;#ffffff&#x27;, width: -10 },
+    { name: &#x27;width NaN&#x27;, fg: &#x27;#000000&#x27;, bg: &#x27;#ffffff&#x27;, width: NaN },
+  ];
+
+  for (const c of invalidCases) {
+    const res = checkWcag(c);
+    assert.equal(res.valid, false, `${c.name} should fail`);
+    assert.equal(Number.isFinite(res.contrast.ratio), true, `${c.name} ratio must be finite`);
+    assert.equal(Number.isFinite(res.targetSize.width), true, `${c.name} width must be finite`);
+    assert.equal(Number.isFinite(res.targetSize.height), true, `${c.name} height must be finite`);
+    const json = JSON.stringify(res);
+    assert.doesNotMatch(json, /&quot;width&quot;:\s*null|&quot;height&quot;:\s*null|&quot;ratio&quot;:\s*null/, `${c.name} no null in json`);
+  }
+});
+
+test(&#x27;WCAG_VALUES_POSITIVES_AND_BOUNDARIES: valid combinations pass; white/white and under-target fail&#x27;, () =&gt; {
+  const pass = checkWcag({ fg: &#x27;#000000&#x27;, bg: &#x27;#ffffff&#x27;, width: 44, height: 44 });
+  assert.equal(pass.valid, true);
+  assert.equal(pass.contrast.passAA, true);
+  assert.equal(pass.targetSize.pass, true);
+
+  const aliasesPass = checkWcag({ foreground: { r: 0, g: 0, b: 0 }, background: { r: 255, g: 255, b: 255 } });
+  assert.equal(aliasesPass.valid, true);
+
+  const whiteOnWhite = checkWcag({ fg: &#x27;#ffffff&#x27;, bg: &#x27;#ffffff&#x27;, width: 44, height: 44 });
+  assert.equal(whiteOnWhite.valid, false);
+  assert.equal(whiteOnWhite.contrast.passAA, false);
+  assert.equal(whiteOnWhite.contrast.ratio, 1);
+
+  const belowTarget = checkWcag({ fg: &#x27;#000000&#x27;, bg: &#x27;#ffffff&#x27;, width: 24, height: 24 });
+  assert.equal(belowTarget.valid, false);
+  assert.equal(belowTarget.targetSize.pass, false);
+  assert.equal(belowTarget.targetSize.width, 24);
+  assert.equal(belowTarget.targetSize.height, 24);
+});
+</pre></section><section><h2>tests/issue_beta_authenticated_status_setup.test.js</h2><pre>import test from &quot;node:test&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import http from &quot;node:http&quot;;
+import fs from &quot;node:fs&quot;;
+import os from &quot;node:os&quot;;
+import path from &quot;node:path&quot;;
+import { execFile } from &quot;node:child_process&quot;;
+
+const BIN = path.resolve(&quot;bin/megabrain.js&quot;);
+
+test(&quot;authenticated status and setup exit non-zero on 401 and 0 on valid token&quot;, async () =&gt; {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), &quot;s11-&quot;));
+  const server = http.createServer((req, res) =&gt; {
+    if (req.url === &quot;/health&quot;) {
+      res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+      return res.end(JSON.stringify({ status: &quot;HEALTHY&quot;, ok: true }));
+    }
+    if (req.headers.authorization === &quot;Bearer valid&quot;) {
+      let b = &quot;&quot;;
+      req.on(&quot;data&quot;, (c) =&gt; (b += c));
+      return req.on(&quot;end&quot;, () =&gt; {
+        const id = JSON.parse(b || &quot;{}&quot;).id ?? 1;
+        res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+        res.end(JSON.stringify({ jsonrpc: &quot;2.0&quot;, id, result: { tools: [] } }));
+      });
+    }
+    res.writeHead(401, { &quot;content-type&quot;: &quot;application/json&quot; });
+    res.end(JSON.stringify({ error: { message: &quot;Unauthorized&quot; } }));
+  });
+  await new Promise((r) =&gt; server.listen(0, &quot;127.0.0.1&quot;, r));
+  const endpoint = `http://127.0.0.1:${server.address().port}/mcp`;
+  const run = (cmd, token) =&gt;
+    new Promise((resolve) =&gt; {
+      execFile(
+        process.execPath,
+        [BIN, cmd, &quot;--endpoint&quot;, endpoint, ...(cmd === &quot;setup&quot; ? [&quot;--dest&quot;, tmp] : []), &quot;--json&quot;],
+        { env: { ...process.env, XDG_CONFIG_HOME: tmp, MEGABRAIN_TOKEN: token } },
+        (err) =&gt; resolve(err ? (err.code ?? 1) : 0)
+      );
+    });
+
+  try {
+    assert.notEqual(await run(&quot;status&quot;, &quot;bad&quot;), 0);
+    assert.notEqual(await run(&quot;setup&quot;, &quot;bad&quot;), 0);
+    assert.equal(await run(&quot;status&quot;, &quot;valid&quot;), 0);
+    assert.equal(await run(&quot;setup&quot;, &quot;valid&quot;), 0);
+  } finally {
+    server.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+</pre></section><section><h2>tests/issue_beta_cursor_rule.test.js</h2><pre>import fs from &quot;node:fs&quot;;
+import path from &quot;node:path&quot;;
+import os from &quot;node:os&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { test } from &quot;node:test&quot;;
+import { run } from &quot;../src/commands/setup.js&quot;;
+
+test(&quot;preserves existing .cursor rule and creates canonical when absent&quot;, async () =&gt; {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), &quot;cursor-rule-&quot;));
+  const [prevCwd, prevFetch, prevLog, prevExit] = [process.cwd(), globalThis.fetch, console.log, process.exitCode];
+  console.log = () =&gt; {};
+  globalThis.fetch = async () =&gt; new Response(JSON.stringify({ status: &quot;ok&quot; }), { status: 200, headers: { &quot;content-type&quot;: &quot;application/json&quot; } });
+  try {
+    for (const [scenario, preexisting] of [[&quot;existing&quot;, &quot;custom-rule-bytes&quot;], [&quot;absent&quot;, null]]) {
+      const dir = path.join(tmp, scenario);
+      const rule = path.join(dir, &quot;.cursor&quot;, &quot;rules&quot;, &quot;megabrain.mdc&quot;);
+      fs.mkdirSync(path.join(dir, &quot;.cursor&quot;), { recursive: true });
+      if (preexisting) {
+        fs.mkdirSync(path.dirname(rule), { recursive: true });
+        fs.writeFileSync(rule, preexisting);
+      }
+      process.chdir(dir);
+      await run({ flags: { endpoint: &quot;http://127.0.0.1:9000/mcp&quot;, json: true } });
+      const actual = fs.readFileSync(rule, &quot;utf8&quot;);
+      assert.equal(actual, preexisting ?? &quot;# Atlas Rules\nUse Atlas MCP tools (atlas.*).\n&quot;);
+    }
+  } finally {
+    process.chdir(prevCwd);
+    globalThis.fetch = prevFetch;
+    console.log = prevLog;
+    process.exitCode = prevExit;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+</pre></section><section><h2>tests/issue_beta_public_channel.test.js</h2><pre>import { readFileSync } from &#x27;node:fs&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { dirname, join } from &#x27;node:path&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const root = join(dirname(fileURLToPath(import.meta.url)), &#x27;..&#x27;);
+const readme = readFileSync(join(root, &#x27;README.md&#x27;), &#x27;utf8&#x27;);
+
+test(&#x27;PUBLIC_CHANNEL_CONTRACT_NOT_LIVE&#x27;, () =&gt; {
+  // Public channel contract asserts not published yet
+  assert.match(readme, /publicação pública ainda não existe/i);
+  assert.doesNotMatch(readme, /npm install -g @megabrain\/cli/);
+  assert.doesNotMatch(readme, /npm view/i);
+  assert.doesNotMatch(readme, /gh release/i);
+  assert.doesNotMatch(readme, /github\.com\/[^/]+\/[^/]+\/releases/i);
+
+  // Local tarball artifact from s22 preserved
+  assert.match(readme, /npm install -g \.\/dist\/megabrain-cli-4\.0\.0\.tgz/);
+  assert.match(readme, /Node &gt;=18/);
+  assert.match(readme, /4\.0\.0/);
+  assert.match(readme, /sha256sum -c/);
+  assert.match(readme, /rollback/i);
+});
+</pre></section><section><h2>tests/issue_beta_setup_surface.test.js</h2><pre>import fs from &quot;node:fs&quot;;
+import path from &quot;node:path&quot;;
+import os from &quot;node:os&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { test } from &quot;node:test&quot;;
+import { run } from &quot;../src/commands/setup.js&quot;;
+
+const EXPECTED_SKILLS = [
+  &quot;megabrain-orchestrate&quot;, &quot;megabrain-pipeline&quot;, &quot;megabrain-review&quot;,
+  &quot;megabrain-audit&quot;, &quot;megabrain-context&quot;, &quot;megabrain-ui&quot;, &quot;megabrain-surface&quot;
+];
+
+test(&quot;setup installs megabrain-surface and 7 skills idempotently&quot;, async () =&gt; {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), &quot;setup-surface-&quot;));
+  const dest = path.join(tmp, &quot;skills&quot;);
+  const [prevLog, prevFetch] = [console.log, globalThis.fetch];
+  console.log = () =&gt; {};
+  globalThis.fetch = async () =&gt; new Response(JSON.stringify({ status: &quot;ok&quot; }), { status: 200, headers: { &quot;content-type&quot;: &quot;application/json&quot; } });
+  try {
+    for (let i = 0; i &lt; 2; i++) {
+      const report = await run({ flags: { dest, endpoint: &quot;http://127.0.0.1:9000/mcp&quot;, json: true } });
+      for (const skill of EXPECTED_SKILLS) {
+        assert.ok(fs.existsSync(path.join(dest, skill)), `missing skill in dest: ${skill}`);
+        assert.ok(report.installation.installed.includes(skill), `missing in report: ${skill}`);
+      }
+      assert.ok(fs.existsSync(path.join(dest, &quot;megabrain-surface&quot;, &quot;SKILL.md&quot;)));
+      assert.equal(report.installation.installed.length, 8);
+    }
+  } finally {
+    console.log = prevLog;
+    globalThis.fetch = prevFetch;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+</pre></section><section><h2>tests/issue_beta_status_endpoint_safety.test.js</h2><pre>import test from &quot;node:test&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { checkHealth } from &quot;../src/client.js&quot;;
+
+test(&quot;checkHealth endpoint safety and canary leak prevention&quot;, async () =&gt; {
+  const canary = &quot;canary-secret-token-xyz&quot;;
+  const bads = [
+    `http://127.0.0.1:8000/mcp?token=${canary}`,
+    `http://user:${canary}@127.0.0.1:8000/mcp`,
+    `not-a-url-${canary}`
+  ];
+  let fetchCalls = 0;
+  const origFetch = globalThis.fetch;
+  const logs = [];
+  const origLog = console.log, origErr = console.error;
+  console.log = (...a) =&gt; logs.push(a.join(&quot; &quot;));
+  console.error = (...a) =&gt; logs.push(a.join(&quot; &quot;));
+  globalThis.fetch = async () =&gt; { fetchCalls++; return { ok: true, json: async () =&gt; ({ status: &quot;READY&quot; }) }; };
+  try {
+    for (const endpoint of bads) {
+      await assert.rejects(
+        () =&gt; checkHealth({ endpoint }),
+        (err) =&gt; {
+          assert.match(err.message, /^Endpoint invalido:/);
+          assert.equal(err.message.includes(canary), false);
+          return true;
+        }
+      );
+      assert.equal(fetchCalls, 0);
+      assert.equal(logs.some((l) =&gt; l.includes(canary)), false);
+    }
+    const res = await checkHealth({ endpoint: &quot;http://127.0.0.1:9000/mcp&quot; });
+    assert.equal(fetchCalls, 1);
+    assert.deepEqual(res, { status: &quot;READY&quot; });
+  } finally {
+    globalThis.fetch = origFetch;
+    console.log = origLog;
+    console.error = origErr;
+  }
+});
+</pre></section><section><h2>tests/stress.test.js</h2><pre>import test from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { execFileSync } from &#x27;node:child_process&#x27;;
+import { writeFileSync, unlinkSync } from &#x27;node:fs&#x27;;
+import { tmpdir } from &#x27;node:os&#x27;;
+import { join } from &#x27;node:path&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+
+const skillRoot = join(fileURLToPath(import.meta.url), &#x27;..&#x27;, &#x27;..&#x27;);
+const { validateDAG } = await import(`${skillRoot}/scripts/dag_validator.js`);
+const { computeBlockHash, verifyLedger, canonicalStringify } = await import(`${skillRoot}/scripts/merkle_verify.js`);
+const { sliceAst } = await import(`${skillRoot}/scripts/ast_slice.js`);
+const { checkWcag, parseColor, getLuminance, getContrastRatio } = await import(`${skillRoot}/scripts/wcag_check.js`);
+
+test(&#x27;Stress: DAG Validator - 50 nodes linear chain&#x27;, () =&gt; {
+  const linear = Array.from({ length: 50 }, (_, i) =&gt; ({
+    id: `node_${i}`,
+    depends_on: i === 0 ? [] : [`node_${i - 1}`],
+  }));
+
+  const res = validateDAG(linear);
+  assert.equal(res.valid, true);
+  assert.equal(res.cycles.length, 0);
+  assert.equal(res.waves.length, 50);
+  for (let i = 0; i &lt; 50; i++) {
+    assert.deepEqual(res.waves[i], [`node_${i}`]);
+  }
+});
+
+test(&#x27;Stress: DAG Validator - 50 nodes disjoint components&#x27;, () =&gt; {
+  // 5 disconnected components of 10 nodes each
+  const disjoint = [];
+  for (let c = 0; c &lt; 5; c++) {
+    for (let i = 0; i &lt; 10; i++) {
+      disjoint.push({
+        id: `c${c}_n${i}`,
+        depends_on: i === 0 ? [] : [`c${c}_n${i - 1}`],
+      });
+    }
+  }
+
+  const res = validateDAG(disjoint);
+  assert.equal(res.valid, true);
+  assert.equal(res.cycles.length, 0);
+  assert.equal(res.waves.length, 10);
+  for (let w = 0; w &lt; 10; w++) {
+    assert.equal(res.waves[w].length, 5);
+  }
+});
+
+test(&#x27;Stress: DAG Validator - 50 nodes wide parallel waves&#x27;, () =&gt; {
+  // 5 waves of 10 nodes each (every node in wave w depends on all nodes in wave w-1)
+  const parallel = [];
+  for (let w = 0; w &lt; 5; w++) {
+    for (let i = 0; i &lt; 10; i++) {
+      parallel.push({
+        id: `w${w}_n${i}`,
+        depends_on: w === 0 ? [] : Array.from({ length: 10 }, (_, prev) =&gt; `w${w - 1}_n${prev}`),
+      });
+    }
+  }
+
+  const res = validateDAG(parallel);
+  assert.equal(res.valid, true);
+  assert.equal(res.cycles.length, 0);
+  assert.equal(res.waves.length, 5);
+  for (let w = 0; w &lt; 5; w++) {
+    assert.equal(res.waves[w].length, 10);
+  }
+
+  // 50 completely independent nodes in 1 single wave
+  const allIndep = Array.from({ length: 50 }, (_, i) =&gt; ({ id: `indep_${i}`, depends_on: [] }));
+  const resIndep = validateDAG(allIndep);
+  assert.equal(resIndep.valid, true);
+  assert.equal(resIndep.waves.length, 1);
+  assert.equal(resIndep.waves[0].length, 50);
+});
+
+test(&#x27;Stress: DAG Validator - Complex cycles in 50 nodes&#x27;, () =&gt; {
+  // 50 nodes total ring cycle: 0 -&gt; 1 -&gt; ... -&gt; 49 -&gt; 0
+  const ring = Array.from({ length: 50 }, (_, i) =&gt; ({
+    id: `ring_${i}`,
+    depends_on: [`ring_${(i + 49) % 50}`],
+  }));
+  const resRing = validateDAG(ring);
+  assert.equal(resRing.valid, false);
+  assert.equal(resRing.cycles.length, 50);
+  assert.equal(resRing.waves.length, 0);
+
+  // 45 acyclic nodes + 5 cyclic nodes
+  const mixed = Array.from({ length: 45 }, (_, i) =&gt; ({
+    id: `ok_${i}`,
+    depends_on: i === 0 ? [] : [`ok_${i - 1}`],
+  }));
+  for (let i = 0; i &lt; 5; i++) {
+    mixed.push({
+      id: `cycle_${i}`,
+      depends_on: [&#x27;ok_44&#x27;, `cycle_${(i + 4) % 5}`],
+    });
+  }
+  const resMixed = validateDAG(mixed);
+  assert.equal(resMixed.valid, false);
+  assert.deepEqual(resMixed.cycles.sort(), [&#x27;cycle_0&#x27;, &#x27;cycle_1&#x27;, &#x27;cycle_2&#x27;, &#x27;cycle_3&#x27;, &#x27;cycle_4&#x27;].sort());
+  assert.equal(resMixed.waves.length, 45);
+
+  // Figure-8 double cycle: c1_0 &lt;-&gt; c1_1 and c2_0 &lt;-&gt; c2_1 sharing a hub
+  const fig8 = [
+    { id: &#x27;hub&#x27;, depends_on: [&#x27;c1_b&#x27;, &#x27;c2_b&#x27;] },
+    { id: &#x27;c1_a&#x27;, depends_on: [&#x27;hub&#x27;] },
+    { id: &#x27;c1_b&#x27;, depends_on: [&#x27;c1_a&#x27;] },
+    { id: &#x27;c2_a&#x27;, depends_on: [&#x27;hub&#x27;] },
+    { id: &#x27;c2_b&#x27;, depends_on: [&#x27;c2_a&#x27;] },
+  ];
+  const resFig8 = validateDAG(fig8);
+  assert.equal(resFig8.valid, false);
+  assert.equal(resFig8.cycles.length, 5);
+
+  // Self-loop: node depends on itself
+  const selfLoop = [
+    { id: &#x27;start&#x27;, depends_on: [] },
+    { id: &#x27;loop&#x27;, depends_on: [&#x27;start&#x27;, &#x27;loop&#x27;] },
+  ];
+  const resSelf = validateDAG(selfLoop);
+  assert.equal(resSelf.valid, false);
+  assert.deepEqual(resSelf.cycles, [&#x27;loop&#x27;]);
+  assert.equal(resSelf.waves.length, 1);
+  const resMissing = validateDAG([
+    { id: &#x27;t1&#x27;, depends_on: [] },
+    { id: &#x27;t2&#x27;, depends_on: [&#x27;t1&#x27;, &#x27;inexistent_task&#x27;] },
+  ]);
+  assert.equal(resMissing.valid, false);
+  assert.deepEqual(resMissing.missing_dependencies, [&#x27;inexistent_task&#x27;]);
+  assert.deepEqual(resMissing.cycles, []);
+});
+
+test(&#x27;Stress: DAG Validator - CLI file execution&#x27;, () =&gt; {
+  const tmpFile = join(tmpdir(), `dag_test_${Date.now()}.json`);
+  const validData = [
+    { id: &#x27;t1&#x27;, depends_on: [] },
+    { id: &#x27;t2&#x27;, depends_on: [&#x27;t1&#x27;] },
+  ];
+  writeFileSync(tmpFile, JSON.stringify(validData), &#x27;utf8&#x27;);
+
+  try {
+    const stdout = execFileSync(process.execPath, [join(skillRoot, &#x27;scripts&#x27;, &#x27;dag_validator.js&#x27;), tmpFile], {
+      encoding: &#x27;utf8&#x27;,
+    });
+    const parsed = JSON.parse(stdout);
+    assert.equal(parsed.valid, true);
+    assert.equal(parsed.waves.length, 2);
+  } finally {
+    unlinkSync(tmpFile);
+  }
+});
+
+test(&#x27;Stress: Merkle Verify - 50 valid blocks chained&#x27;, () =&gt; {
+  const blocks = [];
+  for (let i = 0; i &lt; 50; i++) {
+    const b = {
+      index: i,
+      timestamp: 1700000000 + i * 15,
+      previous_hash: i === 0 ? &#x27;0&#x27; : blocks[i - 1].hash,
+      data: {
+        batch: `batch_${i}`,
+        transactions: [
+          { id: `tx_${i}_1`, amount: i * 10 + 1 },
+          { id: `tx_${i}_2`, amount: i * 10 + 2 },
+        ],
+        author: &#x27;sovereign_kernel&#x27;,
+      },
+    };
+    b.hash = computeBlockHash(b);
+    blocks.push(b);
+  }
+
+  const res = verifyLedger(blocks);
+  assert.equal(res.valid, true);
+  assert.equal(res.blocks_verified, 50);
+  assert.equal(res.errors.length, 0);
+
+  // Also verify object wrapping format { blocks: [...] }
+  const resWrapped = verifyLedger({ blocks });
+  assert.equal(resWrapped.valid, true);
+  assert.equal(resWrapped.blocks_verified, 50);
+});
+
+test(&#x27;Stress: Merkle Verify - Tampering intermediate block and hash alteration&#x27;, () =&gt; {
+  const blocks = [];
+  for (let i = 0; i &lt; 50; i++) {
+    const b = {
+      index: i,
+      previous_hash: i === 0 ? &#x27;0&#x27; : blocks[i - 1].hash,
+      data: { sequence: i, payload: `payload_${i}` },
+    };
+    b.hash = computeBlockHash(b);
+    blocks.push(b);
+  }
+
+  // 1. Tamper intermediate payload at block 25 without altering declared hash
+  const tamperedPayload = JSON.parse(JSON.stringify(blocks));
+  tamperedPayload[25].data.payload = &#x27;tampered_malicious_data&#x27;;
+  const res1 = verifyLedger(tamperedPayload);
+  assert.equal(res1.valid, false);
+  assert.ok(res1.errors.some((e) =&gt; e.includes(&#x27;Block 25: hash mismatch&#x27;)));
+
+  // 2. Tamper block 25 data AND recalculate block 25 hash
+  // Block 26 previous_hash will no longer match block 25&#x27;s new hash
+  const tamperedChain = JSON.parse(JSON.stringify(blocks));
+  tamperedChain[25].data.payload = &#x27;tampered_malicious_data&#x27;;
+  tamperedChain[25].hash = computeBlockHash(tamperedChain[25]);
+  const res2 = verifyLedger(tamperedChain);
+  assert.equal(res2.valid, false);
+  assert.ok(res2.errors.some((e) =&gt; e.includes(&#x27;Block 26: previous_hash mismatch&#x27;)));
+
+  // 3. Alter declared hash of block 30 directly
+  const tamperedHash = JSON.parse(JSON.stringify(blocks));
+  tamperedHash[30].hash = &#x27;deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef&#x27;;
+  const res3 = verifyLedger(tamperedHash);
+  assert.equal(res3.valid, false);
+  assert.ok(res3.errors.some((e) =&gt; e.includes(&#x27;Block 30: hash mismatch&#x27;)));
+  assert.ok(res3.errors.some((e) =&gt; e.includes(&#x27;Block 31: previous_hash mismatch&#x27;)));
+});
+
+test(&#x27;Stress: Merkle Verify - Genesis block edge cases&#x27;, () =&gt; {
+  const mkGenesis = (prev) =&gt; {
+    const g = { index: 0, previous_hash: prev, data: &#x27;genesis_content&#x27; };
+    g.hash = computeBlockHash(g);
+    return g;
+  };
+
+  // Valid genesis previous_hash variants
+  assert.equal(verifyLedger([mkGenesis(&#x27;0&#x27;)]).valid, true);
+  assert.equal(verifyLedger([mkGenesis(&#x27;&#x27;)]).valid, true);
+  assert.equal(verifyLedger([mkGenesis(null)]).valid, true);
+  assert.equal(verifyLedger([mkGenesis(undefined)]).valid, true);
+  assert.equal(verifyLedger([mkGenesis(&#x27;0&#x27;.repeat(64))]).valid, true);
+  assert.equal(verifyLedger([mkGenesis(&#x27;f&#x27;.repeat(64))]).valid, false);
+
+  // Invalid genesis previous_hash
+  const badPrev = verifyLedger([mkGenesis(&#x27;not_a_valid_hash&#x27;)]);
+  assert.equal(badPrev.valid, false);
+  assert.ok(badPrev.errors.some((e) =&gt; e.includes(&#x27;Block 0: invalid previous_hash&#x27;)));
+
+  const numericPrev = verifyLedger([mkGenesis(0)]);
+  assert.equal(numericPrev.valid, true);
+
+  // Empty ledger is valid
+  assert.equal(verifyLedger([]).valid, true);
+  // Non-array ledger is invalid
+  assert.equal(verifyLedger(null).valid, false);
+  assert.equal(verifyLedger(&#x27;not-blocks&#x27;).valid, false);
+});
+
+test(&#x27;Stress: Merkle Verify - Canonical key sorting determinism&#x27;, () =&gt; {
+  const o1 = { z: 10, a: 1, m: { y: 2, x: 1 } };
+  const o2 = { a: 1, m: { x: 1, y: 2 }, z: 10 };
+  assert.equal(canonicalStringify(o1), canonicalStringify(o2));
+  assert.equal(computeBlockHash(o1), computeBlockHash(o2));
+});
+
+test(&#x27;Stress: AST Slicer - Complex JS/TS with token reduction measurement&#x27;, () =&gt; {
+  const complexTs = `
+import { Injectable, Inject, PipeTransform, ArgumentMetadata } from &#x27;@nestjs/common&#x27;;
+import { Observable, of } from &#x27;rxjs&#x27;;
+import { map, catchError } from &#x27;rxjs/operators&#x27;;
+
+export interface Repository&lt;T extends Record&lt;string, any&gt;, ID = string&gt; {
+  findById(id: ID): Promise&lt;T | null&gt;;
+  findAll(filter?: Record&lt;string, any&gt;): Promise&lt;T[]&gt;;
+  save(entity: T): Promise&lt;T&gt;;
+  delete(id: ID): Promise&lt;boolean&gt;;
+}
+
+export type EntityId = string | number;
+export type AsyncResult&lt;T&gt; = Promise&lt;{ success: boolean; data?: T; error?: string }&gt;;
+
+@Injectable()
+export class SovereignDatabaseService&lt;T extends { id: EntityId }&gt; implements Repository&lt;T, EntityId&gt; {
+  private readonly store: Map&lt;EntityId, T&gt; = new Map();
+
+  constructor(
+    @Inject(&#x27;CONFIG&#x27;) private readonly config: Record&lt;string, any&gt;,
+    private readonly logger: Console
+  ) {}
+
+  async findById(id: EntityId): Promise&lt;T | null&gt; {
+    const item = this.store.get(id);
+    if (!item) {
+      this.logger.warn(\`Item \${id} not found\`);
+      return null;
+    }
+    return item;
+  }
+
+  async findAll(filter?: Record&lt;string, any&gt;): Promise&lt;T[]&gt; {
+    const all = Array.from(this.store.values());
+    if (!filter) return all;
+    return all.filter((entry) =&gt; Object.entries(filter).every(([k, v]) =&gt; entry[k] === v));
+  }
+
+  export async function* batchStreamer(batchSize: number = 50): AsyncGenerator&lt;T[]&gt; {
+    let currentBatch: T[] = [];
+    for (const item of this.store.values()) {
+      currentBatch.push(item);
+      if (currentBatch.length &gt;= batchSize) {
+        yield currentBatch;
+        currentBatch = [];
+      }
+    }
+    if (currentBatch.length &gt; 0) {
+      yield currentBatch;
+    }
+  }
+}
+`;
+
+  const res = sliceAst(complexTs, &#x27;ts&#x27;);
+  assert.equal(res.lang, &#x27;ts&#x27;);
+  assert.ok(res.declarations.length &gt;= 4);
+
+  // Check specific declarations extracted
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;interface Repository&#x27;)));
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;type EntityId&#x27;)));
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;type AsyncResult&#x27;)));
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;class SovereignDatabaseService&#x27;)));
+
+  // Measure token/character reduction
+  const originalChars = complexTs.length;
+  const outlineChars = res.outline.length;
+  const reductionPct = ((originalChars - outlineChars) / originalChars) * 100;
+
+  const origTokens = Math.ceil(originalChars / 4);
+  const outlineTokens = Math.ceil(outlineChars / 4);
+
+  assert.ok(reductionPct &gt; 60, `Expected &gt;60% reduction, got ${reductionPct.toFixed(1)}%`);
+  assert.ok(outlineTokens &lt; origTokens / 2, &#x27;Outline tokens should be less than half original&#x27;);
+});
+
+test(&#x27;Stress: AST Slicer - Complex Python with nested classes and type hints&#x27;, () =&gt; {
+  const complexPy = `
+import asyncio
+from typing import Dict, List, Optional, Union, Tuple, Any, Callable
+from dataclasses import dataclass, field
+
+@dataclass
+class SwarmMetrics:
+    total_tasks: int = 0
+    completed_tasks: int = 0
+    failed_tasks: int = 0
+    latency_ms: float = 0.0
+
+class DistributedCoordinator:
+    &quot;&quot;&quot;Sovereign cluster coordinator managing nested worker agents.&quot;&quot;&quot;
+
+    class NodeWorker:
+        &quot;&quot;&quot;Nested worker agent handling subtasks.&quot;&quot;&quot;
+        def __init__(self, node_id: str, capacity: int = 16) -&gt; None:
+            self.node_id = node_id
+            self.capacity = capacity
+            self.active = True
+
+        def evaluate_health(self) -&gt; bool:
+            return self.active and self.capacity &gt; 0
+
+    def __init__(self, cluster_name: str, metrics: Optional[SwarmMetrics] = None) -&gt; None:
+        self.cluster_name = cluster_name
+        self.metrics = metrics or SwarmMetrics()
+        self.workers: List[DistributedCoordinator.NodeWorker] = []
+
+    async def schedule_workload(
+        self,
+        task_id: str,
+        parameters: Dict[str, Union[str, int, float, List[str]]],
+        retry_policy: Optional[Callable[[int], bool]] = None
+    ) -&gt; Tuple[bool, Optional[str]]:
+        &quot;&quot;&quot;Multi-line signature function with complex type hints.&quot;&quot;&quot;
+        for worker in self.workers:
+            if worker.evaluate_health():
+                await asyncio.sleep(0.01)
+                self.metrics.completed_tasks += 1
+                return True, worker.node_id
+        return False, None
+
+def top_level_bootstrap(config_path: str = &quot;config.yaml&quot;) -&gt; DistributedCoordinator:
+    return DistributedCoordinator(cluster_name=&quot;primary&quot;)
+`;
+
+  const res = sliceAst(complexPy, &#x27;py&#x27;);
+  assert.equal(res.lang, &#x27;py&#x27;);
+  assert.ok(res.declarations.length &gt;= 7);
+
+  // Check extracted signatures
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;class SwarmMetrics:&#x27;)));
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;class DistributedCoordinator:&#x27;)));
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;class NodeWorker:&#x27;)));
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;def __init__&#x27;)));
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;def evaluate_health&#x27;)));
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;async def schedule_workload&#x27;)));
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;def top_level_bootstrap&#x27;)));
+
+  // Measure token/character reduction
+  const originalChars = complexPy.length;
+  const outlineChars = res.outline.length;
+  const reductionPct = ((originalChars - outlineChars) / originalChars) * 100;
+
+  assert.ok(reductionPct &gt; 60, `Expected &gt;60% reduction, got ${reductionPct.toFixed(1)}%`);
+});
+
+test(&#x27;Stress: AST Slicer - Auto language detection &amp; CLI flags&#x27;, () =&gt; {
+  assert.equal(sliceAst(&#x27;def calculate(): pass&#x27;, &#x27;auto&#x27;).lang, &#x27;py&#x27;);
+  assert.equal(sliceAst(&#x27;interface Config { port: number; }&#x27;, &#x27;auto&#x27;).lang, &#x27;ts&#x27;);
+  assert.equal(sliceAst(&#x27;function runTask() { return true; }&#x27;, &#x27;auto&#x27;).lang, &#x27;js&#x27;);
+
+  const tmpFile = join(tmpdir(), `ast_test_${Date.now()}.ts`);
+  writeFileSync(tmpFile, &#x27;export interface TestInterface {\n  id: string;\n}\nexport class TestService {}\n&#x27;, &#x27;utf8&#x27;);
+
+  try {
+    const stdout = execFileSync(
+      process.execPath,
+      [join(skillRoot, &#x27;scripts&#x27;, &#x27;ast_slice.js&#x27;), tmpFile, &#x27;--json&#x27;, &#x27;--lang=ts&#x27;],
+      { encoding: &#x27;utf8&#x27; }
+    );
+    const parsed = JSON.parse(stdout);
+    assert.equal(parsed.lang, &#x27;ts&#x27;);
+    assert.equal(parsed.declarations.length, 2);
+    assert.ok(parsed.outline.includes(&#x27;TestInterface&#x27;));
+    assert.ok(parsed.outline.includes(&#x27;TestService&#x27;));
+  } finally {
+    unlinkSync(tmpFile);
+  }
+});
+
+test(&#x27;Stress: WCAG Check - Extreme contrasts and edge ratios&#x27;, () =&gt; {
+  // Max contrast 21:1
+  const bw = checkWcag({ fg: &#x27;#000000&#x27;, bg: &#x27;#ffffff&#x27; });
+  assert.equal(bw.contrast.ratio, 21);
+  assert.equal(bw.contrast.passAA, true);
+  assert.equal(bw.contrast.passLarge, true);
+  assert.equal(bw.valid, true);
+
+  const wb = checkWcag({ fg: &#x27;#ffffff&#x27;, bg: &#x27;#000000&#x27; });
+  assert.equal(wb.contrast.ratio, 21);
+  assert.equal(wb.contrast.passAA, true);
+
+  // Min contrast 1:1
+  const ww = checkWcag({ fg: &#x27;#ffffff&#x27;, bg: &#x27;#ffffff&#x27; });
+  assert.equal(ww.contrast.ratio, 1);
+  assert.equal(ww.contrast.passAA, false);
+  assert.equal(ww.contrast.passLarge, false);
+  assert.equal(ww.valid, false);
+
+  const bb = checkWcag({ fg: &#x27;#000000&#x27;, bg: &#x27;#000000&#x27; });
+  assert.equal(bb.contrast.ratio, 1);
+  assert.equal(bb.contrast.passAA, false);
+
+  // Boundary AA contrast (~4.5:1)
+  // #767676 on white gives ~4.54:1 (PASS AA)
+  const boundaryPass = checkWcag({ fg: &#x27;#767676&#x27;, bg: &#x27;#ffffff&#x27; });
+  assert.ok(boundaryPass.contrast.ratio &gt;= 4.5);
+  assert.equal(boundaryPass.contrast.passAA, true);
+
+  // #777777 on white gives ~4.48:1 (FAIL AA, PASS Large)
+  const boundaryFailAA = checkWcag({ fg: &#x27;#777777&#x27;, bg: &#x27;#ffffff&#x27; });
+  assert.ok(boundaryFailAA.contrast.ratio &lt; 4.5);
+  assert.equal(boundaryFailAA.contrast.passAA, false);
+  assert.equal(boundaryFailAA.contrast.passLarge, true);
+
+  // Shorthand 3-hex color support
+  const shortHex = checkWcag({ fg: &#x27;#000&#x27;, bg: &#x27;#fff&#x27; });
+  assert.equal(shortHex.contrast.ratio, 21);
+});
+
+test(&#x27;Stress: WCAG Check - Target size constraints (44x44px minimum)&#x27;, () =&gt; {
+  // Exactly 44x44
+  const exact = checkWcag({ fg: &#x27;#000&#x27;, bg: &#x27;#fff&#x27;, width: 44, height: 44 });
+  assert.equal(exact.targetSize.pass, true);
+  assert.equal(exact.valid, true);
+
+  // Sub-minimum width: 43x44
+  const subWidth = checkWcag({ fg: &#x27;#000&#x27;, bg: &#x27;#fff&#x27;, width: 43, height: 44 });
+  assert.equal(subWidth.targetSize.pass, false);
+  assert.equal(subWidth.valid, false);
+
+  // Sub-minimum height: 44x43
+  const subHeight = checkWcag({ fg: &#x27;#000&#x27;, bg: &#x27;#fff&#x27;, width: 44, height: 43 });
+  assert.equal(subHeight.targetSize.pass, false);
+  assert.equal(subHeight.valid, false);
+
+  // Typical mobile icon button: 24x24
+  const iconSize = checkWcag({ fg: &#x27;#000&#x27;, bg: &#x27;#fff&#x27;, width: 24, height: 24 });
+  assert.equal(iconSize.targetSize.pass, false);
+  assert.equal(iconSize.valid, false);
+
+  // Non-numeric and negative values
+  assert.equal(checkWcag({ fg: &#x27;#000&#x27;, bg: &#x27;#fff&#x27;, width: -10, height: 44 }).targetSize.pass, false);
+  assert.equal(checkWcag({ fg: &#x27;#000&#x27;, bg: &#x27;#fff&#x27;, width: &#x27;abc&#x27;, height: &#x27;xyz&#x27; }).targetSize.pass, false);
+});
+
+test(&#x27;Stress: WCAG Check - Invalid color fallback and edge cases&#x27;, () =&gt; {
+  const badColor = checkWcag({ fg: &#x27;not-a-color&#x27;, bg: &#x27;#fff&#x27; });
+  assert.equal(badColor.contrast.ratio, 1);
+  assert.equal(badColor.valid, false);
+
+  const emptyCall = checkWcag({});
+  assert.equal(emptyCall.valid, false);
+
+  const rgbObj = checkWcag({ fg: { r: 0, g: 0, b: 0 }, bg: { r: 255, g: 255, b: 255 } });
+  assert.equal(rgbObj.contrast.ratio, 21);
+  assert.equal(rgbObj.valid, true);
+});
+
+test(&#x27;Stress: WCAG Check - CLI formatted and JSON output with exit codes&#x27;, () =&gt; {
+  const scriptPath = join(skillRoot, &#x27;scripts&#x27;, &#x27;wcag_check.js&#x27;);
+
+  const passOut = execFileSync(
+    process.execPath,
+    [scriptPath, &#x27;--fg=#000000&#x27;, &#x27;--bg=#ffffff&#x27;, &#x27;--width=48&#x27;, &#x27;--height=48&#x27;],
+    { encoding: &#x27;utf8&#x27; }
+  );
+  assert.ok(passOut.includes(&#x27;WCAG 2.1 Audit: PASSED&#x27;));
+  assert.ok(passOut.includes(&#x27;21:1&#x27;));
+
+  const jsonOut = execFileSync(
+    process.execPath,
+    [scriptPath, &#x27;--fg=#000000&#x27;, &#x27;--bg=#ffffff&#x27;, &#x27;--width=48&#x27;, &#x27;--height=48&#x27;, &#x27;--json&#x27;],
+    { encoding: &#x27;utf8&#x27; }
+  );
+  const parsed = JSON.parse(jsonOut);
+  assert.equal(parsed.valid, true);
+  assert.equal(parsed.contrast.ratio, 21);
+  assert.equal(parsed.targetSize.pass, true);
+
+  assert.throws(
+    () =&gt; {
+      execFileSync(
+        process.execPath,
+        [scriptPath, &#x27;--fg=#ffffff&#x27;, &#x27;--bg=#ffffff&#x27;, &#x27;--width=20&#x27;, &#x27;--height=20&#x27;],
+        { encoding: &#x27;utf8&#x27; }
+      );
+    },
+    (err) =&gt; err.status === 1
+  );
+});
+</pre></section><section><h2>tests/suite.test.js</h2><pre>import test from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { execFileSync } from &#x27;node:child_process&#x27;;
+import { existsSync, readFileSync, readdirSync } from &#x27;node:fs&#x27;;
+import { join } from &#x27;node:path&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+
+import { validateDAG } from &#x27;../scripts/dag_validator.js&#x27;;
+import { computeBlockHash, verifyLedger } from &#x27;../scripts/merkle_verify.js&#x27;;
+import { sliceAst } from &#x27;../scripts/ast_slice.js&#x27;;
+import { getContrastRatio } from &#x27;../scripts/wcag_check.js&#x27;;
+
+// ponytail: synchronous recursive directory walk; upgrade to stream/worker pipeline for repos &gt;100k files
+const repoRoot = fileURLToPath(new URL(&#x27;..&#x27;, import.meta.url));
+
+test(&#x27;CLI Execution &amp; Version&#x27;, () =&gt; {
+  const binPath = join(repoRoot, &#x27;bin&#x27;, &#x27;megabrain.js&#x27;);
+  const stdout = execFileSync(process.execPath, [binPath, &#x27;--version&#x27;], { encoding: &#x27;utf8&#x27; }).trim();
+  assert.equal(stdout, &#x27;4.0.0&#x27;);
+});
+
+test(&#x27;DAG Validator Script&#x27;, () =&gt; {
+  const acyclic = [
+    { id: &#x27;1&#x27;, depends_on: [] },
+    { id: &#x27;2&#x27;, depends_on: [&#x27;1&#x27;] },
+    { id: &#x27;3&#x27;, depends_on: [&#x27;2&#x27;] },
+  ];
+  const resValid = validateDAG(acyclic);
+  assert.equal(resValid.valid, true);
+  assert.deepEqual(resValid.cycles, []);
+  assert.equal(resValid.waves.length, 3);
+
+  const cyclic = [
+    { id: &#x27;a&#x27;, depends_on: [&#x27;b&#x27;] },
+    { id: &#x27;b&#x27;, depends_on: [&#x27;a&#x27;] },
+  ];
+  const resCyclic = validateDAG(cyclic);
+  assert.equal(resCyclic.valid, false);
+  assert.ok(resCyclic.cycles.length &gt; 0);
+});
+
+test(&#x27;Merkle Ledger Script&#x27;, () =&gt; {
+  const b0 = { index: 0, previous_hash: &#x27;0&#x27;, data: &#x27;genesis&#x27; };
+  b0.hash = computeBlockHash(b0);
+  assert.equal(typeof b0.hash, &#x27;string&#x27;);
+  assert.equal(b0.hash.length, 64);
+
+  const b1 = { index: 1, previous_hash: b0.hash, data: &#x27;payload&#x27; };
+  b1.hash = computeBlockHash(b1);
+
+  const validRes = verifyLedger([b0, b1]);
+  assert.equal(validRes.valid, true);
+  assert.equal(validRes.blocks_verified, 2);
+  assert.equal(validRes.errors.length, 0);
+
+  const tamperedRes = verifyLedger([b0, { ...b1, hash: &#x27;badhash&#x27; }]);
+  assert.equal(tamperedRes.valid, false);
+  assert.ok(tamperedRes.errors.length &gt; 0);
+});
+
+test(&#x27;AST Slicer Script&#x27;, () =&gt; {
+  const code = &#x27;export function calculateTotal() {\n  return 100;\n}\nclass Invoice {\n}&#x27;;
+  const res = sliceAst(code, &#x27;js&#x27;);
+  assert.equal(res.lang, &#x27;js&#x27;);
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;calculateTotal&#x27;)));
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;Invoice&#x27;)));
+  assert.ok(res.outline.includes(&#x27;calculateTotal&#x27;));
+});
+
+test(&#x27;WCAG Checker Script&#x27;, () =&gt; {
+  assert.equal(getContrastRatio(&#x27;#000000&#x27;, &#x27;#ffffff&#x27;), 21);
+  assert.equal(getContrastRatio(&#x27;#ffffff&#x27;, &#x27;#ffffff&#x27;), 1);
+});
+
+test(&#x27;Semantic Skills Discovery Oracle&#x27;, () =&gt; {
+  const skills = [
+    &#x27;megabrain-ui&#x27;,
+    &#x27;megabrain-context&#x27;,
+    &#x27;megabrain-audit&#x27;,
+    &#x27;megabrain-review&#x27;,
+    &#x27;megabrain-pipeline&#x27;,
+    &#x27;megabrain-orchestrate&#x27;,
+  ];
+
+  for (const skill of skills) {
+    const skillPath = join(repoRoot, skill, &#x27;SKILL.md&#x27;);
+    assert.ok(existsSync(skillPath), `${skill}/SKILL.md exists`);
+    const content = readFileSync(skillPath, &#x27;utf8&#x27;);
+
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    assert.ok(fmMatch, `${skill} has YAML frontmatter`);
+    const fm = fmMatch[1];
+    assert.match(fm, /^name:\s*\S+/m, `${skill} has frontmatter name`);
+    assert.match(fm, /^version:\s*\S+/m, `${skill} has frontmatter version`);
+    assert.match(fm, /^description:\s*\S+/m, `${skill} has frontmatter description`);
+
+    assert.match(content, /## When to Use/, `${skill} has &#x27;When to Use&#x27;`);
+    assert.match(content, /## NOT for/, `${skill} has &#x27;NOT for&#x27;`);
+  }
+});
+
+test(&#x27;Privacy &amp; Neutrality Scanner&#x27;, () =&gt; {
+  const forbidden = [
+    [&#x27;Luiz&#x27;, &#x27;Karlos&#x27;].join(&#x27;&#x27;),
+    [&#x27;Luiz&#x27;, &#x27;Karlos&#x27;, &#x27;/megabrain&#x27;].join(&#x27;&#x27;),
+  ];
+  const selfPath = fileURLToPath(import.meta.url);
+
+  function scan(dir) {
+    const hits = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === &#x27;.git&#x27;) continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        hits.push(...scan(full));
+      } else if (entry.isFile()) {
+        if (full === selfPath) continue;
+        const text = readFileSync(full, &#x27;utf8&#x27;);
+        for (const term of forbidden) {
+          if (text.includes(term)) {
+            hits.push({ file: full, term });
+          }
+        }
+      }
+    }
+    return hits;
+  }
+
+  const violations = scan(repoRoot);
+  assert.deepEqual(violations, [], `Privacy violations found: ${JSON.stringify(violations)}`);
+});
+</pre></section><!--/email_off--></main></body></html>

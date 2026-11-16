@@ -1,0 +1,106 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>scripts/wcag_check.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>scripts/wcag_check.js</h1><!--email_off--><pre>#!/usr/bin/env node
+import { readFileSync } from &#x27;node:fs&#x27;;
+import { resolve } from &#x27;node:path&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import process from &#x27;node:process&#x27;;
+
+// ponytail: sRGB/WCAG 2.1 relative luminance; upgrade to APCA/WCAG 3 for perceptual lightness
+export function parseColor(str) {
+  // ponytail: validates RGB [0..255]; upgrade if color spaces beyond RGB are supported
+  if (str &amp;&amp; typeof str === &#x27;object&#x27;) {
+    return [str.r, str.g, str.b].every((v) =&gt; Number.isInteger(v) &amp;&amp; v &gt;= 0 &amp;&amp; v &lt;= 255)
+      ? { r: str.r, g: str.g, b: str.b }
+      : null;
+  }
+  if (typeof str !== &#x27;string&#x27;) return null;
+  let h = str.trim().replace(/^#/, &#x27;&#x27;);
+  if (h.length === 3) h = h.split(&#x27;&#x27;).map((c) =&gt; c + c).join(&#x27;&#x27;);
+  if (h.length !== 6 || !/^[0-9a-fA-F]{6}$/.test(h)) return null;
+  const n = parseInt(h, 16);
+  return { r: (n &gt;&gt; 16) &amp; 255, g: (n &gt;&gt; 8) &amp; 255, b: n &amp; 255 };
+}
+
+export function getLuminance(color) {
+  const rgb = parseColor(color);
+  if (!rgb) return 0;
+  const srgb = [rgb.r, rgb.g, rgb.b].map((v) =&gt; {
+    const c = v / 255;
+    return c &lt;= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+}
+
+export function getContrastRatio(fg, bg) {
+  const l1 = getLuminance(fg), l2 = getLuminance(bg);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+export function checkWcag(params = {}) {
+  const fg = params.fg ?? params.foreground, bg = params.bg ?? params.background;
+  const validColors = Boolean(parseColor(fg) &amp;&amp; parseColor(bg));
+  const ratio = validColors ? getContrastRatio(fg, bg) : 1;
+  const passAA = validColors &amp;&amp; ratio &gt;= 4.5, passLarge = validColors &amp;&amp; ratio &gt;= 3.0;
+  const parseDim = (v) =&gt; {
+    if (v === undefined) return 44;
+    if (typeof v === &#x27;number&#x27;) return Number.isFinite(v) &amp;&amp; v &gt;= 0 ? v : 0;
+    if (typeof v === &#x27;string&#x27; &amp;&amp; /^\d+(\.\d+)?$/.test(v.trim())) return Number(v);
+    return 0;
+  };
+  const width = parseDim(params.width), height = parseDim(params.height);
+  const targetPass = width &gt;= 44 &amp;&amp; height &gt;= 44;
+  return {
+    contrast: { ratio, passAA, passLarge },
+    targetSize: { pass: targetPass, width, height },
+    valid: Boolean(passAA &amp;&amp; targetPass),
+  };
+}
+
+export default checkWcag;
+
+const isMain = process.argv[1] &amp;&amp; resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  const args = process.argv.slice(2);
+  if (args.includes(&#x27;--help&#x27;) || args.includes(&#x27;-h&#x27;)) {
+    console.log(`MegaBrain WCAG 2.1 Checker
+
+Usage: node scripts/wcag_check.js --fg=&quot;#000&quot; --bg=&quot;#fff&quot; [--width=44] [--height=44] [--json]
+Flags: --fg=&lt;hex&gt;, --bg=&lt;hex&gt;, --width=&lt;px&gt;, --height=&lt;px&gt;, --json, --help`);
+    process.exit(0);
+  }
+  // ponytail: strict argv grammar without parser dep; upgrade if subcommands added
+  const VAL_FLAGS = [&#x27;--fg&#x27;, &#x27;--bg&#x27;, &#x27;--width&#x27;, &#x27;--height&#x27;];
+  const opts = {}, pos = [], fail = (m) =&gt; { console.error(m); process.exit(1); };
+  for (let i = 0; i &lt; args.length; i++) {
+    const a = args[i];
+    if (a === &#x27;--json&#x27;) continue;
+    const match = VAL_FLAGS.find((f) =&gt; a === f || a.startsWith(f + &#x27;=&#x27;));
+    if (match) {
+      if (opts[match.slice(2)] !== undefined) fail(`Duplicate ${match}`);
+      const eq = a.includes(&#x27;=&#x27;), raw = eq ? a.slice(match.length + 1) : args[++i];
+      if (raw === undefined || (!eq &amp;&amp; raw.startsWith(&#x27;-&#x27;)) || !raw.replace(/^[&quot;&#x27;]|[&quot;&#x27;]$/g, &#x27;&#x27;)) fail(`Missing value for ${match}`);
+      opts[match.slice(2)] = raw.replace(/^[&quot;&#x27;]|[&quot;&#x27;]$/g, &#x27;&#x27;);
+    } else if (a.startsWith(&#x27;-&#x27;)) {
+      fail(`Unknown flag: ${a}`);
+    } else {
+      pos.push(a);
+    }
+  }
+  if (pos.length &gt; 1 || (pos.length === 1 &amp;&amp; Object.keys(opts).length &gt; 0)) fail(&#x27;Invalid arguments&#x27;);
+  const file = pos[0];
+  const params = file
+    ? JSON.parse(readFileSync(file, &#x27;utf8&#x27;))
+    : {
+        fg: opts.fg ?? &#x27;#000000&#x27;, bg: opts.bg ?? &#x27;#ffffff&#x27;,
+        width: opts.width ? Number(opts.width) : 44, height: opts.height ? Number(opts.height) : 44,
+      };
+  if (file &amp;&amp; (params === null || typeof params !== &#x27;object&#x27; || Array.isArray(params))) {
+    throw new TypeError(&#x27;WCAG file must be a JSON object&#x27;);
+  }
+  const res = checkWcag(params);
+  if (args.includes(&#x27;--json&#x27;)) console.log(JSON.stringify(res, null, 2));
+  else console.log(`WCAG 2.1 Audit: ${res.valid ? &#x27;PASSED&#x27; : &#x27;FAILED&#x27;}
+  Contrast: ${res.contrast.ratio}:1 (AA: ${res.contrast.passAA ? &#x27;PASS&#x27; : &#x27;FAIL&#x27;}, Large: ${res.contrast.passLarge ? &#x27;PASS&#x27; : &#x27;FAIL&#x27;})
+  Target Size: ${res.targetSize.width}x${res.targetSize.height}px (${res.targetSize.pass ? &#x27;PASS&#x27; : &#x27;FAIL&#x27;})`);
+  if (!res.valid) process.exitCode = 1;
+}
+</pre><!--/email_off--></main></body></html>

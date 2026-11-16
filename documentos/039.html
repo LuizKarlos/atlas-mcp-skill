@@ -1,0 +1,106 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>src/commands/setup.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>src/commands/setup.js</h1><!--email_off--><pre>import fs from &quot;node:fs&quot;;
+import path from &quot;node:path&quot;;
+import os from &quot;node:os&quot;;
+import { fileURLToPath } from &quot;node:url&quot;;
+import { checkHealth, listTools } from &quot;../client.js&quot;;
+import { getEndpoint, getToken, validateEndpoint } from &quot;../config.js&quot;;
+
+const SKILLS = [
+  &quot;megabrain-orchestrate&quot;,
+  &quot;megabrain-pipeline&quot;,
+  &quot;megabrain-review&quot;,
+  &quot;megabrain-audit&quot;,
+  &quot;megabrain-context&quot;,
+  &quot;megabrain-ui&quot;,
+  &quot;megabrain-surface&quot;
+];
+
+// ponytail: synchronous copy and unary probe; upgrade to async workers when syncing &gt;50 skills
+export async function run({ positionals = [], flags = {} } = {}) {
+  if (flags?.help) {
+    console.log(&quot;Usage: megabrain setup [--dest &lt;path&gt;] [--endpoint &lt;url&gt;] [--json]&quot;);
+    return;
+  }
+
+  const endpoint = flags?.endpoint || getEndpoint();
+  validateEndpoint(endpoint);
+  const token = getToken();
+  const rootDir = fileURLToPath(new URL(&quot;../../&quot;, import.meta.url));
+  const destArg = typeof flags?.dest === &quot;string&quot; ? flags.dest : (positionals[0] || null);
+  const destDir = destArg || path.join(process.cwd(), &quot;.agents&quot;, &quot;skills&quot;);
+
+  fs.mkdirSync(destDir, { recursive: true });
+  const installed = [];
+  for (const item of [...SKILLS, &quot;scripts&quot;]) {
+    const src = path.join(rootDir, item);
+    if (fs.existsSync(src)) {
+      fs.cpSync(src, path.join(destDir, item), { recursive: true });
+      installed.push(item);
+    }
+  }
+
+  const harnesses = [];
+  const cursorDir = path.join(process.cwd(), &quot;.cursor&quot;);
+  if (fs.existsSync(cursorDir)) {
+    harnesses.push(&quot;.cursor&quot;);
+    const rulesDir = path.join(cursorDir, &quot;rules&quot;);
+    fs.mkdirSync(rulesDir, { recursive: true });
+    const rulePath = path.join(rulesDir, &quot;megabrain.mdc&quot;);
+    if (!fs.existsSync(rulePath)) fs.writeFileSync(rulePath, &quot;# Atlas Rules\nUse Atlas MCP tools (atlas.*).\n&quot;);
+  }
+  if (fs.existsSync(path.join(process.cwd(), &quot;.vscode&quot;))) harnesses.push(&quot;.vscode&quot;);
+  if (fs.existsSync(path.join(os.homedir(), &quot;.hermes&quot;))) harnesses.push(&quot;.hermes&quot;);
+
+  const mcpConfig = {
+    mcpServers: {
+      atlas: {
+        url: endpoint,
+        headers: token ? { Authorization: &quot;Bearer ${MEGABRAIN_TOKEN}&quot; } : {}
+      }
+    }
+  };
+  if (flags?.[&quot;write-mcp&quot;] || flags?.writeMcp) fs.writeFileSync(path.join(destDir, &quot;megabrain.mcp.json&quot;), JSON.stringify(mcpConfig, null, 2) + &quot;\n&quot;);
+
+  const nodeMajor = parseInt(process.versions.node.split(&quot;.&quot;)[0], 10);
+  const nodeOk = nodeMajor &gt;= 18;
+
+  function healthReady(health) {
+    const rawStatus = typeof health?.status === &quot;string&quot; ? health.status.toUpperCase() : &quot;&quot;;
+    return Boolean(health) &amp;&amp; !health.isError &amp;&amp; health.ready !== false &amp;&amp; health.kernel_ready !== false &amp;&amp; health.ok !== false &amp;&amp;
+      ([&quot;READY&quot;, &quot;HEALTHY&quot;, &quot;OK&quot;].includes(rawStatus) || (rawStatus === &quot;&quot; &amp;&amp; (health.ready === true || health.ok === true)));
+  }
+
+  const explicitToken = flags?.token || process.env.MEGABRAIN_TOKEN;
+  let connected = false;
+  const start = Date.now();
+  try {
+    const health = await checkHealth({ endpoint, token: explicitToken, signal: AbortSignal.timeout(3000) });
+    connected = healthReady(health);
+    if (connected &amp;&amp; explicitToken) await listTools({ endpoint, token: explicitToken, signal: AbortSignal.timeout(3000) });
+  } catch {
+    connected = false;
+  }
+  const latencyMs = Date.now() - start;
+
+  const report = {
+    status: nodeOk &amp;&amp; connected ? &quot;ok&quot; : &quot;degraded&quot;,
+    prerequisites: { node: { version: process.version, valid: nodeOk } },
+    connectivity: { endpoint, connected, latencyMs },
+    installation: { destination: destDir, installed },
+    harnesses,
+    mcpConfig
+  };
+
+  if (flags?.json) {
+    console.log(JSON.stringify(report));
+  } else {
+    console.log(`MegaBrain Setup: ${report.status.toUpperCase()}`);
+    console.log(`- Node.js: ${process.version} (${nodeOk ? &quot;OK&quot; : &quot;Requires &gt;= 18&quot;})`);
+    console.log(`- Connectivity: ${connected ? &quot;Connected&quot; : &quot;Offline&quot;} (${latencyMs}ms) to ${endpoint}`);
+    console.log(`- Installed ${installed.length} items to ${destDir}`);
+    if (harnesses.length) console.log(`- Harnesses: ${harnesses.join(&quot;, &quot;)}`);
+  }
+  if (report.status !== &quot;ok&quot;) process.exitCode = 1;
+  return report;
+}
+</pre><!--/email_off--></main></body></html>

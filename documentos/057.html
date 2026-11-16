@@ -1,0 +1,34 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_ledger_envelope.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_ledger_envelope.test.js</h1><!--email_off--><pre>import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { computeBlockHash, verifyLedger } from &#x27;../scripts/merkle_verify.js&#x27;;
+
+test(&#x27;ENV_ROOT_SIG_INVALID&#x27;, () =&gt; {
+  const b = { index: 0, previous_hash: &#x27;0&#x27;, data: &#x27;x&#x27; };
+  b.hash = computeBlockHash(b);
+  const r = verifyLedger({ blocks: [b], merkle_root: &#x27;invalid&#x27;, signature: &#x27;invalid&#x27; });
+  assert.equal(r.valid, false);
+  assert.ok(r.errors.some((e) =&gt; /unsupported/i.test(e)));
+});
+
+test(&#x27;ENV_LINEAR_OK&#x27;, () =&gt; {
+  const b = { index: 0, previous_hash: &#x27;0&#x27;, data: &#x27;x&#x27; };
+  b.hash = computeBlockHash(b);
+  assert.equal(verifyLedger([b]).valid, true);
+});
+test(&#x27;ENV_ALLOWLIST_WRAPPER&#x27;, () =&gt; {
+  const b = { index: 0, previous_hash: &#x27;0&#x27;, data: &#x27;x&#x27; };
+  b.hash = computeBlockHash(b);
+  for (const env of [
+    { blocks: [b], attestation: &#x27;X&#x27; },
+    { blocks: [b], receipt: &#x27;X&#x27; },
+    { blocks: [b], certificate: &#x27;X&#x27; },
+    { blocks: [b], extra: 1 },
+  ]) {
+    const r = verifyLedger(env);
+    assert.equal(r.valid, false);
+    assert.ok(r.errors.some((e) =&gt; /unsupported/i.test(e)));
+  }
+  assert.equal(verifyLedger({ blocks: [b] }).valid, true);
+  assert.equal(verifyLedger([b]).valid, true);
+});
+</pre><!--/email_off--></main></body></html>

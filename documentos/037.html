@@ -1,0 +1,69 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>src/commands/call.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>src/commands/call.js</h1><!--email_off--><pre>import { callTool } from &quot;../client.js&quot;;
+
+// ponytail: single tool caller; upgrade to multi-step agent pipeline when needed
+export function validateToolName(name) {
+  if (typeof name !== &quot;string&quot; || !name || name.includes(&quot;..&quot;) || name.endsWith(&quot;.&quot;)) {
+    throw new Error(&quot;Tool name must be atlas.&lt;tool&gt;&quot;);
+  }
+  if (!/^atlas[._][a-zA-Z0-9_]+$/.test(name)) {
+    throw new Error(&quot;Tool name must be atlas.&lt;tool&gt;&quot;);
+  }
+  return name.startsWith(&quot;atlas_&quot;) ? `atlas.${name.slice(&quot;atlas_&quot;.length)}` : name;
+}
+
+const FAILS = new Set([&quot;ERROR&quot;, &quot;FAILED&quot;, &quot;NOT_EXECUTED&quot;, &quot;BLOCKED&quot;, &quot;MALFORMED_RESULT&quot;, &quot;INSUFFICIENT_EVIDENCE&quot;, &quot;VERIFICATION_REQUIRED&quot;]);
+function hasErr(o) {
+  if (!o || typeof o !== &quot;object&quot; || Array.isArray(o)) return false;
+  const s = typeof o.status === &quot;string&quot; ? o.status.toUpperCase() : &quot;&quot;;
+  const err = typeof o.error_code === &quot;string&quot; &amp;&amp; o.error_code.length &gt; 0;
+  return s === &quot;SKIPPED&quot; ? ((typeof o.exit_code === &quot;number&quot; &amp;&amp; o.exit_code !== 0) || err) : (FAILS.has(s) || err);
+}
+
+export function isBusinessFailure(result) {
+  try {
+    if (!result || typeof result !== &quot;object&quot; || Array.isArray(result)) return false;
+    if (result.isError === true || hasErr(result)) return true;
+    if (hasErr(result.structuredContent)) return true;
+    if (Array.isArray(result.content)) {
+      for (const item of result.content) {
+        if (item &amp;&amp; item.type === &quot;text&quot; &amp;&amp; typeof item.text === &quot;string&quot;) {
+          try {
+            if (hasErr(JSON.parse(item.text))) return true;
+          } catch {}
+        }
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+export async function run({ positionals = [], flags = {}, callToolFn = callTool }) {
+  const pos = Array.isArray(positionals) ? positionals : [];
+  const [name, rawArgs] = pos;
+  if (!name) throw new Error(&quot;Tool name required. Usage: megabrain call &lt;tool&gt; [args-json]&quot;);
+  const tool = validateToolName(name);
+  if (pos.length &gt; 2) throw new Error(&quot;Too many arguments. Usage: megabrain call &lt;tool&gt; [args-json]&quot;);
+  let args = {};
+  if (rawArgs !== undefined) {
+    try {
+      args = JSON.parse(rawArgs);
+    } catch (e) {
+      throw new Error(`Invalid JSON arguments: ${e.message}`);
+    }
+    if (args === null || Array.isArray(args) || typeof args !== &quot;object&quot;) {
+      throw new Error(&quot;Arguments must be a JSON object&quot;);
+    }
+  }
+  const result = await callToolFn(tool, args, { endpoint: flags.endpoint, token: flags.token });
+  if (isBusinessFailure(result)) process.exitCode = 1;
+  if (flags.json) {
+    console.log(JSON.stringify(result));
+  } else {
+    const formatted = typeof result === &quot;object&quot; ? JSON.stringify(result, null, 2) : result;
+    console.log(formatted);
+  }
+  return result;
+}
+</pre><!--/email_off--></main></body></html>

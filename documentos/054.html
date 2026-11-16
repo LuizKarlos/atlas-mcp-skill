@@ -1,0 +1,53 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_docs_ui.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_docs_ui.test.js</h1><!--email_off--><pre>import { readFileSync, existsSync } from &#x27;node:fs&#x27;;
+import { execSync } from &#x27;node:child_process&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { dirname, join } from &#x27;node:path&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const root = join(dirname(fileURLToPath(import.meta.url)), &#x27;..&#x27;);
+const skill = readFileSync(join(root, &#x27;megabrain-ui/SKILL.md&#x27;), &#x27;utf8&#x27;);
+const tokens = readFileSync(join(root, &#x27;megabrain-ui/references/design-tokens-spec.md&#x27;), &#x27;utf8&#x27;);
+const visual = readFileSync(join(root, &#x27;megabrain-ui/references/visual-tdd-methodology.md&#x27;), &#x27;utf8&#x27;);
+const wcag = readFileSync(join(root, &#x27;megabrain-ui/references/wcag-target-sizes.md&#x27;), &#x27;utf8&#x27;);
+const docs = skill + tokens + visual + wcag;
+
+test(&#x27;DOCS_UI_CONTENT&#x27;, () =&gt; {
+  assert.match(skill, /atlas\.complete_upload/);
+  assert.match(skill, /html_content/);
+  assert.match(skill, /css_content/);
+  assert.doesNotMatch(skill, /localhost:3000/);
+  assert.doesNotMatch(docs, new RegExp([&#x27;Luiz&#x27;, &#x27;Karlos&#x27;].join(&#x27;&#x27;)));
+});
+
+test(&#x27;DOCS_UI_NO_SSRF&#x27;, () =&gt; {
+  assert.match(visual, /Sem SSRF/);
+  assert.match(skill, /html_content/);
+  assert.doesNotMatch(skill, /css_path/);
+});
+
+test(&#x27;DOCS_UI_WCAG_LOCAL&#x27;, () =&gt; {
+  assert.match(wcag, /JSON\/flags/);
+  assert.match(docs, /não é.*headless/i);
+  assert.match(tokens, /css_content/);
+  assert.doesNotMatch(tokens, /--css_path/);
+});
+
+test(&#x27;DOCS_UI_CALLS_AND_AST&#x27;, () =&gt; {
+  const calls = [...skill.matchAll(/megabrain call (\S+) &#x27;([^&#x27;]+)&#x27;/g)].map(m =&gt; ({ tool: m[1], json: JSON.parse(m[2]) }));
+  assert.ok(calls.length &gt;= 1);
+  for (const c of calls) assert.equal(typeof c.json, &#x27;object&#x27;);
+  const cap = calls.find(c =&gt; c.tool === &#x27;atlas.complete_upload&#x27;);
+  assert.ok(cap &amp;&amp; cap.json.project_id &amp;&amp; cap.json.session_id);
+  assert.match(skill, /127\.0\.0\.1/);
+  const buf = Buffer.from(&#x27;iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==&#x27;, &#x27;base64&#x27;);
+  assert.equal(buf.subarray(0, 4).toString(&#x27;latin1&#x27;), &#x27;\x89PNG&#x27;);
+  assert.match(skill, /89 50 4E 47/);
+  const kPath = process.env.MEGABRAIN_KERNEL_SOURCE || &#x27;/srv/megabrain-dev/repository/runtime/atlas_mcp_server.py&#x27;;
+  const sigs = existsSync(kPath)
+    ? JSON.parse(execSync(&#x27;python3 - &lt;&lt;PY\nimport ast, json\ntree = ast.parse(open(&quot;&#x27; + kPath + &#x27;&quot;).read())\nprint(json.dumps({n.name: [a.arg for a in n.args.args if a.arg not in (&quot;self&quot;,)] for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}))\nPY&#x27;, { encoding: &#x27;utf8&#x27; }))
+    : { atlas_complete_upload: [&#x27;project_id&#x27;, &#x27;session_id&#x27;, &#x27;data_text&#x27;, &#x27;data_base64&#x27;, &#x27;data_hex&#x27;] };
+  const allowed = sigs.atlas_complete_upload || [&#x27;project_id&#x27;, &#x27;session_id&#x27;, &#x27;data_text&#x27;, &#x27;data_base64&#x27;, &#x27;data_hex&#x27;];
+  assert.ok(Object.keys(cap.json).every(k =&gt; allowed.includes(k)));
+});
+</pre><!--/email_off--></main></body></html>

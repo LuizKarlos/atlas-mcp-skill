@@ -1,0 +1,25 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue_beta_public_channel.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue_beta_public_channel.test.js</h1><!--email_off--><pre>import { readFileSync } from &#x27;node:fs&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { dirname, join } from &#x27;node:path&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const root = join(dirname(fileURLToPath(import.meta.url)), &#x27;..&#x27;);
+const readme = readFileSync(join(root, &#x27;README.md&#x27;), &#x27;utf8&#x27;);
+
+test(&#x27;PUBLIC_CHANNEL_CONTRACT_NOT_LIVE&#x27;, () =&gt; {
+  // Public channel contract asserts not published yet
+  assert.match(readme, /publicação pública ainda não existe/i);
+  assert.doesNotMatch(readme, /npm install -g @megabrain\/cli/);
+  assert.doesNotMatch(readme, /npm view/i);
+  assert.doesNotMatch(readme, /gh release/i);
+  assert.doesNotMatch(readme, /github\.com\/[^/]+\/[^/]+\/releases/i);
+
+  // Local tarball artifact from s22 preserved
+  assert.match(readme, /npm install -g \.\/dist\/megabrain-cli-4\.0\.0\.tgz/);
+  assert.match(readme, /Node &gt;=18/);
+  assert.match(readme, /4\.0\.0/);
+  assert.match(readme, /sha256sum -c/);
+  assert.match(readme, /rollback/i);
+});
+</pre><!--/email_off--></main></body></html>

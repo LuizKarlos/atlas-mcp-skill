@@ -1,0 +1,13 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>src/commands/login.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>src/commands/login.js</h1><!--email_off--><pre>import { getToken, getEndpoint, saveConfig } from &quot;../config.js&quot;;
+
+// ponytail: cli token persistence; upgrade to interactive oauth flow when supported
+export async function run({ positionals = [], flags = {} }) {
+  const token = getToken();
+  if (!token) throw new Error(&quot;No token provided. Set MEGABRAIN_TOKEN.&quot;);
+  const effectiveEndpoint = flags.endpoint || getEndpoint();
+  saveConfig({ token, endpoint: effectiveEndpoint });
+  const out = { status: &quot;ok&quot;, token: Boolean(token), endpoint: effectiveEndpoint };
+  console.log(flags.json ? JSON.stringify(out) : `Configured credentials for ${effectiveEndpoint}`);
+  return out;
+}
+</pre><!--/email_off--></main></body></html>

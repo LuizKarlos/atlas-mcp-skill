@@ -1,0 +1,95 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>src/client.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>src/client.js</h1><!--email_off--><pre>import { getEndpoint, getToken, validateEndpoint } from &quot;./config.js&quot;;
+
+// ponytail: single-turn HTTP fetch; upgrade to persistent SSE reader / WebSocket when bidirectional server notifications needed
+async function sendRpc(method, params = {}, options = {}) {
+  const endpoint = validateEndpoint(options.endpoint || getEndpoint());
+  const token = options.token !== undefined ? options.token : getToken();
+  const origin = new URL(endpoint).origin;
+
+  const headers = {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Accept&quot;: &quot;application/json, text/event-stream&quot;,
+    &quot;Authorization&quot;: token ? `Bearer ${token}` : undefined,
+    &quot;Origin&quot;: origin,
+    ...options.headers
+  };
+  if (!headers[&quot;Authorization&quot;]) delete headers[&quot;Authorization&quot;];
+  headers[&quot;MCP-Protocol-Version&quot;] = &quot;2026-07-28&quot;;
+  headers[&quot;Mcp-Method&quot;] = method;
+  if (method === &quot;tools/call&quot; &amp;&amp; params.name) headers[&quot;Mcp-Name&quot;] = params.name;
+  params._meta = { ...(params._meta || {}), &quot;io.modelcontextprotocol/protocolVersion&quot;: &quot;2026-07-28&quot; };
+  params._meta[&quot;io.modelcontextprotocol/clientCapabilities&quot;] = params._meta[&quot;io.modelcontextprotocol/clientCapabilities&quot;] || { tools: {} };
+  params._meta[&quot;io.modelcontextprotocol/clientInfo&quot;] = params._meta[&quot;io.modelcontextprotocol/clientInfo&quot;] || { name: &quot;atlas-cli&quot;, version: &quot;4.0.0&quot; };
+
+  const id = Date.now();
+  const res = await fetch(endpoint, {
+    method: &quot;POST&quot;,
+    headers,
+    body: JSON.stringify({
+      jsonrpc: &quot;2.0&quot;,
+      id,
+      method,
+      params
+    }),
+    signal: options.signal
+  });
+
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}: ${res.statusText}`;
+    try {
+      const errData = await res.json();
+      if (errData?.error?.message) msg = `${msg} - ${errData.error.message}`;
+    } catch {}
+    throw new Error(msg);
+  }
+
+  const contentType = res.headers.get(&quot;content-type&quot;) || &quot;&quot;;
+  const match = (m) =&gt; Boolean(m &amp;&amp; typeof m === &quot;object&quot; &amp;&amp; m.jsonrpc === &quot;2.0&quot; &amp;&amp; m.id === id &amp;&amp; (&quot;result&quot; in m || &quot;error&quot; in m));
+  let data;
+  if (contentType.includes(&quot;text/event-stream&quot;)) {
+    const text = (await res.text()).replace(/\r\n/g, &quot;\n&quot;).replace(/\r/g, &quot;\n&quot;);
+    for (const frame of text.split(/\n{2,}/)) {
+      const lines = frame.split(&quot;\n&quot;).filter((l) =&gt; l.startsWith(&quot;data:&quot;)).map((l) =&gt; l.slice(5).replace(/^ /, &quot;&quot;));
+      if (!lines.length) continue;
+      try {
+        const m = JSON.parse(lines.join(&quot;\n&quot;));
+        if (match(m)) {
+          data = m;
+          break;
+        }
+      } catch {}
+    }
+  } else {
+    try {
+      const m = await res.json();
+      if (match(m)) data = m;
+    } catch {}
+  }
+
+  if (!data) throw new Error(&quot;Empty or invalid response from server&quot;);
+  if (data.error) {
+    throw new Error(data.error.message || `RPC Error ${data.error.code}`);
+  }
+  return data.result;
+}
+
+export async function callTool(name, args = {}, options = {}) {
+  return sendRpc(&quot;tools/call&quot;, { name, arguments: args }, options);
+}
+
+export async function listTools(options = {}) {
+  return sendRpc(&quot;tools/list&quot;, {}, options);
+}
+
+export async function checkHealth(options = {}) {
+  const endpoint = validateEndpoint(options.endpoint || getEndpoint());
+  const origin = new URL(endpoint).origin;
+  try {
+    const res = await fetch(`${origin}/health`, { signal: options.signal });
+    if (res.ok) return await res.json();
+  } catch {
+    // fallback to tool/ping if /health route is unreachable
+  }
+  return callTool(&quot;atlas.health&quot;, {}, options);
+}
+</pre><!--/email_off--></main></body></html>

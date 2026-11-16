@@ -1,0 +1,42 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_setup_endpoint.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_setup_endpoint.test.js</h1><!--email_off--><pre>import fs from &quot;node:fs&quot;;
+import path from &quot;node:path&quot;;
+import os from &quot;node:os&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { test } from &quot;node:test&quot;;
+import { run } from &quot;../src/commands/setup.js&quot;;
+
+test(&quot;SETUP_INVALID_ENDPOINT: rejeita token na query antes de criar dest&quot;, async () =&gt; {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), &quot;setup-inv-&quot;));
+  const dest = path.join(tmp, &quot;dest&quot;);
+  try {
+    await assert.rejects(
+      () =&gt; run({ flags: { endpoint: &quot;https://mcp.atlascommand.dev/mcp?token=abc&quot;, dest } }),
+      /parametro de consulta sensivel nao permitido/
+    );
+    assert.equal(fs.existsSync(dest), false);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test(&quot;SETUP_VALID_ENDPOINT: isola cwd e usa mock fetch sem tocar workspace real&quot;, async () =&gt; {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), &quot;setup-val-&quot;));
+  const [prevCwd, prevFetch, prevLog, prevExit] = [process.cwd(), globalThis.fetch, console.log, process.exitCode];
+  process.chdir(tmp);
+  console.log = () =&gt; {};
+  globalThis.fetch = async () =&gt; new Response(JSON.stringify({ status: &quot;ok&quot; }), { status: 200, headers: { &quot;content-type&quot;: &quot;application/json&quot; } });
+  try {
+    const report = await run({ flags: { endpoint: &quot;http://127.0.0.1:9000/mcp&quot;, json: true } });
+    assert.equal(report.connectivity.endpoint, &quot;http://127.0.0.1:9000/mcp&quot;);
+    assert.equal(report.connectivity.connected, true);
+    assert.equal(fs.existsSync(path.join(tmp, &quot;.agents&quot;, &quot;skills&quot;)), true);
+  } finally {
+    process.chdir(prevCwd);
+    globalThis.fetch = prevFetch;
+    console.log = prevLog;
+    process.exitCode = prevExit;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+  assert.equal(fs.existsSync(path.join(prevCwd, &quot;.agents&quot;)), false);
+});
+</pre><!--/email_off--></main></body></html>

@@ -1,0 +1,50 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_docs_review.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_docs_review.test.js</h1><!--email_off--><pre>import { readFileSync, existsSync } from &#x27;node:fs&#x27;;
+import { execSync } from &#x27;node:child_process&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { dirname, join } from &#x27;node:path&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const root = join(dirname(fileURLToPath(import.meta.url)), &#x27;..&#x27;);
+const skill = readFileSync(join(root, &#x27;megabrain-review/SKILL.md&#x27;), &#x27;utf8&#x27;);
+const slop = readFileSync(join(root, &#x27;megabrain-review/references/anti-slop-patterns.md&#x27;), &#x27;utf8&#x27;);
+const dual = readFileSync(join(root, &#x27;megabrain-review/references/dual-blind-adjudication.md&#x27;), &#x27;utf8&#x27;);
+const voice = readFileSync(join(root, &#x27;megabrain-review/references/voice-calibration.md&#x27;), &#x27;utf8&#x27;);
+const docs = skill + slop + dual + voice;
+
+test(&#x27;DOCS_REV_APPROVED&#x27;, () =&gt; {
+  assert.match(skill, /atlas\.submit_task_review/);
+  assert.match(skill, /approved/);
+  assert.match(docs, /não é autorização/);
+  assert.match(docs, /advisory/);
+  assert.doesNotMatch(docs, new RegExp([&#x27;Luiz&#x27;, &#x27;Karlos&#x27;].join(&#x27;&#x27;)));
+});
+
+test(&#x27;DOCS_REV_NO_ARBITER&#x27;, () =&gt; {
+  assert.match(skill, /Jev é só advisory/);
+  assert.match(dual, /nenhum árbitro LLM server-side/);
+  assert.doesNotMatch(skill, /third-party arbiter/);
+});
+
+test(&#x27;DOCS_REV_JSON&#x27;, () =&gt; {
+  assert.match(skill, /Anti-slop com JSON objeto/);
+  assert.match(skill, /Voice calibrate com JSON objeto/);
+  assert.match(slop, /JSON objeto/);
+  assert.match(voice, /JSON objeto/);
+  assert.doesNotMatch(slop, /call anti_slop_lint --text/);
+});
+
+test(&#x27;DOCS_REV_CALLS_AND_AST&#x27;, () =&gt; {
+  const calls = [...skill.matchAll(/megabrain call (\S+) &#x27;([^&#x27;]+)&#x27;/g)].map(m =&gt; ({ tool: m[1], json: JSON.parse(m[2]) }));
+  assert.ok(calls.length &gt;= 1);
+  for (const c of calls) assert.equal(typeof c.json, &#x27;object&#x27;);
+  const adj = calls.find(c =&gt; c.tool === &#x27;atlas.submit_task_review&#x27;)?.json;
+  assert.ok(adj &amp;&amp; adj.project_id &amp;&amp; adj.mission_id &amp;&amp; adj.task_id &amp;&amp; adj.execution_id &amp;&amp; adj.review_execution_id &amp;&amp; adj.verdict &amp;&amp; adj.rationale);
+  const kPath = process.env.MEGABRAIN_KERNEL_SOURCE || &#x27;/srv/megabrain-dev/repository/runtime/atlas_mcp_server.py&#x27;;
+  const sigs = existsSync(kPath)
+    ? JSON.parse(execSync(&#x27;python3 - &lt;&lt;PY\nimport ast, json\ntree = ast.parse(open(&quot;&#x27; + kPath + &#x27;&quot;).read())\nprint(json.dumps({n.name: [a.arg for a in n.args.args if a.arg not in (&quot;self&quot;,)] for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}))\nPY&#x27;, { encoding: &#x27;utf8&#x27; }))
+    : { atlas_submit_task_review: [&#x27;project_id&#x27;, &#x27;mission_id&#x27;, &#x27;task_id&#x27;, &#x27;execution_id&#x27;, &#x27;review_execution_id&#x27;, &#x27;verdict&#x27;, &#x27;rationale&#x27;] };
+  const allowed = sigs.atlas_submit_task_review || [&#x27;project_id&#x27;, &#x27;mission_id&#x27;, &#x27;task_id&#x27;, &#x27;execution_id&#x27;, &#x27;review_execution_id&#x27;, &#x27;verdict&#x27;, &#x27;rationale&#x27;];
+  assert.ok(Object.keys(adj).every(k =&gt; allowed.includes(k)));
+});
+</pre><!--/email_off--></main></body></html>

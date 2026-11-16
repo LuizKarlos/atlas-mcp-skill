@@ -1,0 +1,23 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>megabrain-ui/references/wcag-target-sizes.md</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>megabrain-ui/references/wcag-target-sizes.md</h1><!--email_off--><pre># WCAG Target Sizes &amp; Accessibility Specification
+
+Governs touch target sizing and color contrast verification for WCAG 2.1 AA/AAA compliance via `@cli_atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+
+## Target Size Compliance (WCAG 2.1 SC 2.5.5 &amp; SC 2.5.8)
+
+Ensures interactive elements are easily operable across touch and pointer devices:
+- **Minimum Target Size**: All interactive elements (`&lt;button&gt;`, `&lt;a&gt;`, `&lt;input&gt;`, touch controls) require minimum $44 \times 44\text{px}$ footprint.
+- **Padding Compensation**: Sub-44px elements must expand interactive hit-areas using transparent borders or tap padding.
+- **Spacing Invariance**: Adjacent interactive targets must maintain at least $8\text{px}$ separation to eliminate accidental activation.
+
+## Contrast &amp; Focus Rings
+
+- **Normal Text Contrast (SC 1.4.3)**: Relative luminance ratio $\ge 4.5:1$ against resolved background for text under 18pt (or 14pt bold).
+- **Large Text Contrast**: Ratio $\ge 3.0:1$ for text $\ge 18\text{pt}$ (or $\ge 14\text{pt}$ bold) and graphical UI components.
+- **Visible Focus Rings (SC 2.4.7)**: Unbroken focus indicators (`outline: 2px solid var(--focus-ring)`) with $\ge 3.0:1$ contrast against adjacent pixels.
+
+```bash
+node scripts/wcag_check.js --fg=&quot;#ffffff&quot; --bg=&quot;#111827&quot; --width=44 --height=44
+```
+
+WCAG local aceita JSON/flags. Não é auditoria CSS headless. JSON inválido falha fechado.
+</pre><!--/email_off--></main></body></html>

@@ -1,0 +1,19 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>megabrain-context/references/openapi-contract-synthesis.md</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>megabrain-context/references/openapi-contract-synthesis.md</h1><!--email_off--><pre># OpenAPI 3.1 Contract Synthesis Specification
+
+OpenAPI drafts are local files. Atlas hashes whatever you upload.
+
+## Strict OpenAPI 3.1 Synthesis
+
+- **Mechanical Contract Synthesis**: Generate OpenAPI 3.1 in the harness.
+- **Strict Schema Constraints**: Enforces `additionalProperties: false`.
+- **Deterministic Fixtures**: Reproducible mocks.
+- **Explicit Route Mapping**: HTTP methods, path parameters, status codes.
+
+Write the file, then:
+
+```bash
+megabrain call atlas.complete_upload &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;session_id&quot;:&quot;up_1&quot;,&quot;data_text&quot;:&quot;{\&quot;openapi\&quot;:\&quot;3.1.0\&quot;}&quot;}&#x27;
+```
+
+Nomes qualificados e JSON objeto. Flags `--operation_id` não são suportadas pelo CLI. `synthesize_backend_contract` was removed.
+</pre><!--/email_off--></main></body></html>

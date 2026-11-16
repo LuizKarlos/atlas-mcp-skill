@@ -1,0 +1,41 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue_beta_status_endpoint_safety.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue_beta_status_endpoint_safety.test.js</h1><!--email_off--><pre>import test from &quot;node:test&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { checkHealth } from &quot;../src/client.js&quot;;
+
+test(&quot;checkHealth endpoint safety and canary leak prevention&quot;, async () =&gt; {
+  const canary = &quot;canary-secret-token-xyz&quot;;
+  const bads = [
+    `http://127.0.0.1:8000/mcp?token=${canary}`,
+    `http://user:${canary}@127.0.0.1:8000/mcp`,
+    `not-a-url-${canary}`
+  ];
+  let fetchCalls = 0;
+  const origFetch = globalThis.fetch;
+  const logs = [];
+  const origLog = console.log, origErr = console.error;
+  console.log = (...a) =&gt; logs.push(a.join(&quot; &quot;));
+  console.error = (...a) =&gt; logs.push(a.join(&quot; &quot;));
+  globalThis.fetch = async () =&gt; { fetchCalls++; return { ok: true, json: async () =&gt; ({ status: &quot;READY&quot; }) }; };
+  try {
+    for (const endpoint of bads) {
+      await assert.rejects(
+        () =&gt; checkHealth({ endpoint }),
+        (err) =&gt; {
+          assert.match(err.message, /^Endpoint invalido:/);
+          assert.equal(err.message.includes(canary), false);
+          return true;
+        }
+      );
+      assert.equal(fetchCalls, 0);
+      assert.equal(logs.some((l) =&gt; l.includes(canary)), false);
+    }
+    const res = await checkHealth({ endpoint: &quot;http://127.0.0.1:9000/mcp&quot; });
+    assert.equal(fetchCalls, 1);
+    assert.deepEqual(res, { status: &quot;READY&quot; });
+  } finally {
+    globalThis.fetch = origFetch;
+    console.log = origLog;
+    console.error = origErr;
+  }
+});
+</pre><!--/email_off--></main></body></html>

@@ -1,0 +1,27 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>megabrain-review/references/voice-calibration.md</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>megabrain-review/references/voice-calibration.md</h1><!--email_off--><pre># Voice Calibration &amp; Cadence Engineering
+
+Aligns generated documentation and code artifacts with canonical author style via `@cli_atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+
+## Stylistic Alignment (local voice calibrate)
+
+Compares generated drafts against gold-standard author samples to preserve authentic developer voice:
+- **Tone Matching**: Ensures declarative, confident, and direct delivery without passive softening.
+- **Vocabulary Calibration**: Prioritizes concise domain terminology over generic marketing jargon.
+- **Cadence Scoring**: Measures semantic similarity and density against canonical author baselines.
+
+## Rhythm &amp; Readability Metrics (local readability score)
+
+Monitors syntactic and structural flow to avoid robotic monotony:
+- **Sentence Length Variance ($\sigma^2$)**: Alternates short punchy assertions with explanatory compound clauses.
+- **Structural Rhythm**: Balances prose paragraphs with structured markdown tables and bulleted constraints.
+- **Assertive Vocabulary Index**: Penalizes weak hedges (&quot;talvez&quot;, &quot;possivelmente&quot;, &quot;parece que&quot;) in favor of definitive statements.
+
+Voice and readability are local in the harness. There is no MCP tool for them.
+
+```text
+{&quot;text&quot;:&quot;Output text&quot;,&quot;author_sample&quot;:&quot;Canonical text sample&quot;}
+{&quot;text&quot;:&quot;Technical document content&quot;}
+```
+
+JSON objeto, não flags `--text`. Mock/parser não é prova live.
+</pre><!--/email_off--></main></body></html>

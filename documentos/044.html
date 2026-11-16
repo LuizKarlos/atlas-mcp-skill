@@ -1,0 +1,21 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_ast_interface.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_ast_interface.test.js</h1><!--email_off--><pre>import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { sliceAst } from &#x27;../scripts/ast_slice.js&#x27;;
+test(&#x27;AST_IFACE_INLINE&#x27;, () =&gt; { const o = sliceAst(&#x27;export interface User { id: string; }&#x27;,&#x27;ts&#x27;); assert.match(o.outline, /id:\s*string/); });
+test(&#x27;AST_FN_SIG&#x27;, () =&gt; { const o = sliceAst(&#x27;function foo(){ return 1; }&#x27;,&#x27;js&#x27;); assert.match(o.outline, /function foo/); assert.doesNotMatch(o.outline, /return 1/); });
+test(&#x27;AST_FN_INTERFACE_WORD&#x27;, () =&gt; { const o = sliceAst(&#x27;function foo(){ return &quot;interface&quot;; }&#x27;,&#x27;js&#x27;); assert.match(o.outline, /function foo/); assert.doesNotMatch(o.outline, /return/); });
+test(&#x27;AST_IFACE_MULTILINE&#x27;, () =&gt; {
+  const code = &#x27;export interface User {\n id: string;\n name: number;\n}\nexport const x = 1;&#x27;;
+  const o = sliceAst(code, &#x27;ts&#x27;);
+  assert.match(o.outline, /interface User/);
+  assert.match(o.outline, /id:\s*string/);
+  assert.match(o.outline, /name:\s*number/);
+  assert.doesNotMatch(o.declarations[0], /export const x/);
+  assert.match(o.outline, /export const x/);
+});
+test(&#x27;AST_IFACE_UNTERMINATED_DIAGNOSTIC&#x27;, () =&gt; {
+  const code = &#x27;export interface User {\n id: string;&#x27;;
+  const o = sliceAst(code, &#x27;ts&#x27;);
+  assert.match(o.outline, /unterminated/);
+});
+</pre><!--/email_off--></main></body></html>

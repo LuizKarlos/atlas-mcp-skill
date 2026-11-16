@@ -1,0 +1,79 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_status_health.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_status_health.test.js</h1><!--email_off--><pre>import test from &quot;node:test&quot;;
+import assert from &quot;node:assert&quot;;
+import http from &quot;node:http&quot;;
+import { execFile } from &quot;node:child_process&quot;;
+
+test(&quot;cli status health classification and exit codes&quot;, async () =&gt; {
+  let handler;
+  const server = http.createServer((req, res) =&gt; handler(req, res));
+  await new Promise((r) =&gt; server.listen(0, &quot;127.0.0.1&quot;, r));
+  const endpoint = `http://127.0.0.1:${server.address().port}/mcp`;
+
+  const runCli = (args = []) =&gt;
+    new Promise((resolve) =&gt; {
+      execFile(process.execPath, [&quot;bin/megabrain.js&quot;, &quot;status&quot;, &quot;--endpoint&quot;, endpoint, ...args], (err, stdout) =&gt; {
+        resolve({ code: err ? err.code : 0, stdout: stdout || &quot;&quot; });
+      });
+    });
+
+  try {
+    // 1. 404 + isError fallback
+    handler = (req, res) =&gt; {
+      if (req.url === &quot;/health&quot;) return res.writeHead(404).end();
+      let b = &quot;&quot;;
+      req.on(&quot;data&quot;, (c) =&gt; (b += c));
+      req.on(&quot;end&quot;, () =&gt; {
+        const id = JSON.parse(b || &quot;{}&quot;).id ?? null;
+        res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+        res.end(JSON.stringify({ jsonrpc: &quot;2.0&quot;, id, result: { isError: true, content: [&quot;fail&quot;] } }));
+      });
+    };
+    const c1 = await runCli([&quot;--json&quot;]);
+    const d1 = JSON.parse(c1.stdout);
+    assert.strictEqual(c1.code, 1);
+    assert.strictEqual(d1.status, &quot;error&quot;);
+    assert.strictEqual(d1.health?.isError, true);
+
+    // 2. DEGRADED/ready=false
+    handler = (_req, res) =&gt; {
+      res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+      res.end(JSON.stringify({ status: &quot;DEGRADED&quot;, ready: false }));
+    };
+    const c2 = await runCli([&quot;--json&quot;]);
+    const d2 = JSON.parse(c2.stdout);
+    assert.strictEqual(c2.code, 1);
+    assert.strictEqual(d2.status, &quot;DEGRADED&quot;);
+    assert.strictEqual(d2.health?.ready, false);
+
+    // 3. READY exit0
+    handler = (_req, res) =&gt; {
+      res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+      res.end(JSON.stringify({ status: &quot;READY&quot;, ready: true }));
+    };
+    const c3 = await runCli([&quot;--json&quot;]);
+    const d3 = JSON.parse(c3.stdout);
+    assert.strictEqual(c3.code, 0);
+    assert.strictEqual(d3.status, &quot;READY&quot;);
+
+    // 4. objeto insuficiente não-ok
+    handler = (_req, res) =&gt; {
+      res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+      res.end(JSON.stringify({}));
+    };
+    const c4 = await runCli([&quot;--json&quot;]);
+    const d4 = JSON.parse(c4.stdout);
+    assert.strictEqual(c4.code, 1);
+    assert.strictEqual(d4.status, &quot;error&quot;);
+
+    // 5. HEALTHY + kernel_ready=false
+    handler = (_req, res) =&gt; {
+      res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+      res.end(JSON.stringify({ status: &quot;HEALTHY&quot;, kernel_ready: false }));
+    };
+    const c5 = await runCli([&quot;--json&quot;]);
+    assert.strictEqual(c5.code, 1);
+  } finally {
+    server.close();
+  }
+});
+</pre><!--/email_off--></main></body></html>

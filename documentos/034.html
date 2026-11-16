@@ -1,0 +1,18 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>scripts/package_release.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>scripts/package_release.js</h1><!--email_off--><pre>// ponytail: local-only pack; add remote signing/attestation when CI pipeline lands
+import { execSync } from &#x27;node:child_process&#x27;;
+import { readFileSync, writeFileSync, mkdirSync } from &#x27;node:fs&#x27;;
+import { createHash } from &#x27;node:crypto&#x27;;
+import { join } from &#x27;node:path&#x27;;
+
+const pkg = JSON.parse(readFileSync(&#x27;package.json&#x27;, &#x27;utf8&#x27;));
+mkdirSync(&#x27;dist&#x27;, { recursive: true });
+const out = JSON.parse(execSync(&#x27;npm pack --json --pack-destination dist&#x27;, { encoding: &#x27;utf8&#x27; }));
+const { filename, name, version } = out[0] || {};
+if (name !== pkg.name || version !== pkg.version) {
+  throw new Error(`Release mismatch: ${name}@${version} !== ${pkg.name}@${pkg.version}`);
+}
+const tarball = join(&#x27;dist&#x27;, filename);
+const sha = createHash(&#x27;sha256&#x27;).update(readFileSync(tarball)).digest(&#x27;hex&#x27;);
+writeFileSync(join(&#x27;dist&#x27;, `${filename}.sha256`), `${sha}  ${filename}\n`);
+console.log(`Packed ${tarball} (sha256: ${sha})`);
+</pre><!--/email_off--></main></body></html>

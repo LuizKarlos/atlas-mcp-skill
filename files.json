@@ -1,0 +1,602 @@
+[
+  {
+    "path": ".gitignore",
+    "url": "files/.gitignore",
+    "type": "file",
+    "text": true,
+    "bytes": 43,
+    "html_url": "documentos/001.html"
+  },
+  {
+    "path": "DOCS.md",
+    "url": "files/DOCS.md",
+    "type": "md",
+    "text": true,
+    "bytes": 2192,
+    "html_url": "documentos/002.html"
+  },
+  {
+    "path": "README.md",
+    "url": "files/README.md",
+    "type": "md",
+    "text": true,
+    "bytes": 2931,
+    "html_url": "documentos/003.html"
+  },
+  {
+    "path": "ROADMAP.md",
+    "url": "files/ROADMAP.md",
+    "type": "md",
+    "text": true,
+    "bytes": 2047,
+    "html_url": "documentos/004.html"
+  },
+  {
+    "path": "SPEC.md",
+    "url": "files/SPEC.md",
+    "type": "md",
+    "text": true,
+    "bytes": 1123,
+    "html_url": "documentos/005.html"
+  },
+  {
+    "path": "bin/megabrain.js",
+    "url": "files/bin/megabrain.js",
+    "type": "js",
+    "text": true,
+    "bytes": 2755,
+    "html_url": "documentos/006.html"
+  },
+  {
+    "path": "megabrain-audit/SKILL.md",
+    "url": "files/megabrain-audit/SKILL.md",
+    "type": "md",
+    "text": true,
+    "bytes": 2625,
+    "html_url": "documentos/007.html"
+  },
+  {
+    "path": "megabrain-audit/references/merkle-ledger-spec.md",
+    "url": "files/megabrain-audit/references/merkle-ledger-spec.md",
+    "type": "md",
+    "text": true,
+    "bytes": 1507,
+    "html_url": "documentos/008.html"
+  },
+  {
+    "path": "megabrain-audit/references/receipt-ed25519-verification.md",
+    "url": "files/megabrain-audit/references/receipt-ed25519-verification.md",
+    "type": "md",
+    "text": true,
+    "bytes": 1306,
+    "html_url": "documentos/009.html"
+  },
+  {
+    "path": "megabrain-audit/references/time-travel-replay.md",
+    "url": "files/megabrain-audit/references/time-travel-replay.md",
+    "type": "md",
+    "text": true,
+    "bytes": 623,
+    "html_url": "documentos/010.html"
+  },
+  {
+    "path": "megabrain-context/SKILL.md",
+    "url": "files/megabrain-context/SKILL.md",
+    "type": "md",
+    "text": true,
+    "bytes": 2809,
+    "html_url": "documentos/011.html"
+  },
+  {
+    "path": "megabrain-context/references/ast-virtualization.md",
+    "url": "files/megabrain-context/references/ast-virtualization.md",
+    "type": "md",
+    "text": true,
+    "bytes": 1097,
+    "html_url": "documentos/012.html"
+  },
+  {
+    "path": "megabrain-context/references/openapi-contract-synthesis.md",
+    "url": "files/megabrain-context/references/openapi-contract-synthesis.md",
+    "type": "md",
+    "text": true,
+    "bytes": 713,
+    "html_url": "documentos/013.html"
+  },
+  {
+    "path": "megabrain-orchestrate/SKILL.md",
+    "url": "files/megabrain-orchestrate/SKILL.md",
+    "type": "md",
+    "text": true,
+    "bytes": 4322,
+    "html_url": "documentos/014.html"
+  },
+  {
+    "path": "megabrain-orchestrate/references/mission-lifecycle.md",
+    "url": "files/megabrain-orchestrate/references/mission-lifecycle.md",
+    "type": "md",
+    "text": true,
+    "bytes": 1665,
+    "html_url": "documentos/015.html"
+  },
+  {
+    "path": "megabrain-orchestrate/references/swarm-coordination.md",
+    "url": "files/megabrain-orchestrate/references/swarm-coordination.md",
+    "type": "md",
+    "text": true,
+    "bytes": 587,
+    "html_url": "documentos/016.html"
+  },
+  {
+    "path": "megabrain-pipeline/SKILL.md",
+    "url": "files/megabrain-pipeline/SKILL.md",
+    "type": "md",
+    "text": true,
+    "bytes": 2922,
+    "html_url": "documentos/017.html"
+  },
+  {
+    "path": "megabrain-pipeline/references/auto-healing-patterns.md",
+    "url": "files/megabrain-pipeline/references/auto-healing-patterns.md",
+    "type": "md",
+    "text": true,
+    "bytes": 849,
+    "html_url": "documentos/018.html"
+  },
+  {
+    "path": "megabrain-pipeline/references/dag-decomposition-rules.md",
+    "url": "files/megabrain-pipeline/references/dag-decomposition-rules.md",
+    "type": "md",
+    "text": true,
+    "bytes": 1262,
+    "html_url": "documentos/019.html"
+  },
+  {
+    "path": "megabrain-pipeline/references/topological-waves.md",
+    "url": "files/megabrain-pipeline/references/topological-waves.md",
+    "type": "md",
+    "text": true,
+    "bytes": 1323,
+    "html_url": "documentos/020.html"
+  },
+  {
+    "path": "megabrain-review/SKILL.md",
+    "url": "files/megabrain-review/SKILL.md",
+    "type": "md",
+    "text": true,
+    "bytes": 2633,
+    "html_url": "documentos/021.html"
+  },
+  {
+    "path": "megabrain-review/references/anti-slop-patterns.md",
+    "url": "files/megabrain-review/references/anti-slop-patterns.md",
+    "type": "md",
+    "text": true,
+    "bytes": 1521,
+    "html_url": "documentos/022.html"
+  },
+  {
+    "path": "megabrain-review/references/dual-blind-adjudication.md",
+    "url": "files/megabrain-review/references/dual-blind-adjudication.md",
+    "type": "md",
+    "text": true,
+    "bytes": 976,
+    "html_url": "documentos/023.html"
+  },
+  {
+    "path": "megabrain-review/references/voice-calibration.md",
+    "url": "files/megabrain-review/references/voice-calibration.md",
+    "type": "md",
+    "text": true,
+    "bytes": 1393,
+    "html_url": "documentos/024.html"
+  },
+  {
+    "path": "megabrain-surface/SKILL.md",
+    "url": "files/megabrain-surface/SKILL.md",
+    "type": "md",
+    "text": true,
+    "bytes": 15283,
+    "html_url": "documentos/025.html"
+  },
+  {
+    "path": "megabrain-ui/SKILL.md",
+    "url": "files/megabrain-ui/SKILL.md",
+    "type": "md",
+    "text": true,
+    "bytes": 2829,
+    "html_url": "documentos/026.html"
+  },
+  {
+    "path": "megabrain-ui/references/design-tokens-spec.md",
+    "url": "files/megabrain-ui/references/design-tokens-spec.md",
+    "type": "md",
+    "text": true,
+    "bytes": 1589,
+    "html_url": "documentos/027.html"
+  },
+  {
+    "path": "megabrain-ui/references/visual-tdd-methodology.md",
+    "url": "files/megabrain-ui/references/visual-tdd-methodology.md",
+    "type": "md",
+    "text": true,
+    "bytes": 1625,
+    "html_url": "documentos/028.html"
+  },
+  {
+    "path": "megabrain-ui/references/wcag-target-sizes.md",
+    "url": "files/megabrain-ui/references/wcag-target-sizes.md",
+    "type": "md",
+    "text": true,
+    "bytes": 1410,
+    "html_url": "documentos/029.html"
+  },
+  {
+    "path": "package.json",
+    "url": "files/package.json",
+    "type": "json",
+    "text": true,
+    "bytes": 789,
+    "html_url": "documentos/030.html"
+  },
+  {
+    "path": "scripts/ast_slice.js",
+    "url": "files/scripts/ast_slice.js",
+    "type": "js",
+    "text": true,
+    "bytes": 4525,
+    "html_url": "documentos/031.html"
+  },
+  {
+    "path": "scripts/dag_validator.js",
+    "url": "files/scripts/dag_validator.js",
+    "type": "js",
+    "text": true,
+    "bytes": 3122,
+    "html_url": "documentos/032.html"
+  },
+  {
+    "path": "scripts/merkle_verify.js",
+    "url": "files/scripts/merkle_verify.js",
+    "type": "js",
+    "text": true,
+    "bytes": 3900,
+    "html_url": "documentos/033.html"
+  },
+  {
+    "path": "scripts/package_release.js",
+    "url": "files/scripts/package_release.js",
+    "type": "js",
+    "text": true,
+    "bytes": 914,
+    "html_url": "documentos/034.html"
+  },
+  {
+    "path": "scripts/wcag_check.js",
+    "url": "files/scripts/wcag_check.js",
+    "type": "js",
+    "text": true,
+    "bytes": 4572,
+    "html_url": "documentos/035.html"
+  },
+  {
+    "path": "src/client.js",
+    "url": "files/src/client.js",
+    "type": "js",
+    "text": true,
+    "bytes": 3410,
+    "html_url": "documentos/036.html"
+  },
+  {
+    "path": "src/commands/call.js",
+    "url": "files/src/commands/call.js",
+    "type": "js",
+    "text": true,
+    "bytes": 2701,
+    "html_url": "documentos/037.html"
+  },
+  {
+    "path": "src/commands/login.js",
+    "url": "files/src/commands/login.js",
+    "type": "js",
+    "text": true,
+    "bytes": 632,
+    "html_url": "documentos/038.html"
+  },
+  {
+    "path": "src/commands/setup.js",
+    "url": "files/src/commands/setup.js",
+    "type": "js",
+    "text": true,
+    "bytes": 4108,
+    "html_url": "documentos/039.html"
+  },
+  {
+    "path": "src/commands/status.js",
+    "url": "files/src/commands/status.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1315,
+    "html_url": "documentos/040.html"
+  },
+  {
+    "path": "src/config.js",
+    "url": "files/src/config.js",
+    "type": "js",
+    "text": true,
+    "bytes": 3062,
+    "html_url": "documentos/041.html"
+  },
+  {
+    "path": "tests/cli_auth.test.js",
+    "url": "files/tests/cli_auth.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 14999,
+    "html_url": "documentos/042.html"
+  },
+  {
+    "path": "tests/issue351_ast_function_signature.test.js",
+    "url": "files/tests/issue351_ast_function_signature.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1365,
+    "html_url": "documentos/043.html"
+  },
+  {
+    "path": "tests/issue351_ast_interface.test.js",
+    "url": "files/tests/issue351_ast_interface.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1229,
+    "html_url": "documentos/044.html"
+  },
+  {
+    "path": "tests/issue351_call_args.test.js",
+    "url": "files/tests/issue351_call_args.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1835,
+    "html_url": "documentos/045.html"
+  },
+  {
+    "path": "tests/issue351_call_error.test.js",
+    "url": "files/tests/issue351_call_error.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 3031,
+    "html_url": "documentos/046.html"
+  },
+  {
+    "path": "tests/issue351_dag_dependencies.test.js",
+    "url": "files/tests/issue351_dag_dependencies.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1769,
+    "html_url": "documentos/047.html"
+  },
+  {
+    "path": "tests/issue351_dag_ids.test.js",
+    "url": "files/tests/issue351_dag_ids.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 2013,
+    "html_url": "documentos/048.html"
+  },
+  {
+    "path": "tests/issue351_docs_audit.test.js",
+    "url": "files/tests/issue351_docs_audit.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1680,
+    "html_url": "documentos/049.html"
+  },
+  {
+    "path": "tests/issue351_docs_context.test.js",
+    "url": "files/tests/issue351_docs_context.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1609,
+    "html_url": "documentos/050.html"
+  },
+  {
+    "path": "tests/issue351_docs_orchestrate.test.js",
+    "url": "files/tests/issue351_docs_orchestrate.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 2418,
+    "html_url": "documentos/051.html"
+  },
+  {
+    "path": "tests/issue351_docs_pipeline.test.js",
+    "url": "files/tests/issue351_docs_pipeline.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 2852,
+    "html_url": "documentos/052.html"
+  },
+  {
+    "path": "tests/issue351_docs_review.test.js",
+    "url": "files/tests/issue351_docs_review.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 2801,
+    "html_url": "documentos/053.html"
+  },
+  {
+    "path": "tests/issue351_docs_ui.test.js",
+    "url": "files/tests/issue351_docs_ui.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 2794,
+    "html_url": "documentos/054.html"
+  },
+  {
+    "path": "tests/issue351_endpoint.test.js",
+    "url": "files/tests/issue351_endpoint.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 7080,
+    "html_url": "documentos/055.html"
+  },
+  {
+    "path": "tests/issue351_install_docs.test.js",
+    "url": "files/tests/issue351_install_docs.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1348,
+    "html_url": "documentos/056.html"
+  },
+  {
+    "path": "tests/issue351_ledger_envelope.test.js",
+    "url": "files/tests/issue351_ledger_envelope.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1177,
+    "html_url": "documentos/057.html"
+  },
+  {
+    "path": "tests/issue351_ledger_genesis.test.js",
+    "url": "files/tests/issue351_ledger_genesis.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1589,
+    "html_url": "documentos/058.html"
+  },
+  {
+    "path": "tests/issue351_parser.test.js",
+    "url": "files/tests/issue351_parser.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 2022,
+    "html_url": "documentos/059.html"
+  },
+  {
+    "path": "tests/issue351_setup_endpoint.test.js",
+    "url": "files/tests/issue351_setup_endpoint.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1767,
+    "html_url": "documentos/060.html"
+  },
+  {
+    "path": "tests/issue351_setup_exit.test.js",
+    "url": "files/tests/issue351_setup_exit.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 4386,
+    "html_url": "documentos/061.html"
+  },
+  {
+    "path": "tests/issue351_status_health.test.js",
+    "url": "files/tests/issue351_status_health.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 2809,
+    "html_url": "documentos/062.html"
+  },
+  {
+    "path": "tests/issue351_surface_reference.test.js",
+    "url": "files/tests/issue351_surface_reference.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 12462,
+    "html_url": "documentos/063.html"
+  },
+  {
+    "path": "tests/issue351_transport.test.js",
+    "url": "files/tests/issue351_transport.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 5229,
+    "html_url": "documentos/064.html"
+  },
+  {
+    "path": "tests/issue351_wcag_argv.test.js",
+    "url": "files/tests/issue351_wcag_argv.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 2061,
+    "html_url": "documentos/065.html"
+  },
+  {
+    "path": "tests/issue351_wcag_file.test.js",
+    "url": "files/tests/issue351_wcag_file.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 2638,
+    "html_url": "documentos/066.html"
+  },
+  {
+    "path": "tests/issue351_wcag_precision.test.js",
+    "url": "files/tests/issue351_wcag_precision.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 2078,
+    "html_url": "documentos/067.html"
+  },
+  {
+    "path": "tests/issue351_wcag_values.test.js",
+    "url": "files/tests/issue351_wcag_values.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 2642,
+    "html_url": "documentos/068.html"
+  },
+  {
+    "path": "tests/issue_beta_authenticated_status_setup.test.js",
+    "url": "files/tests/issue_beta_authenticated_status_setup.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1956,
+    "html_url": "documentos/069.html"
+  },
+  {
+    "path": "tests/issue_beta_cursor_rule.test.js",
+    "url": "files/tests/issue_beta_cursor_rule.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1544,
+    "html_url": "documentos/070.html"
+  },
+  {
+    "path": "tests/issue_beta_public_channel.test.js",
+    "url": "files/tests/issue_beta_public_channel.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1008,
+    "html_url": "documentos/071.html"
+  },
+  {
+    "path": "tests/issue_beta_setup_surface.test.js",
+    "url": "files/tests/issue_beta_setup_surface.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1489,
+    "html_url": "documentos/072.html"
+  },
+  {
+    "path": "tests/issue_beta_status_endpoint_safety.test.js",
+    "url": "files/tests/issue_beta_status_endpoint_safety.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 1408,
+    "html_url": "documentos/073.html"
+  },
+  {
+    "path": "tests/stress.test.js",
+    "url": "files/tests/stress.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 19908,
+    "html_url": "documentos/074.html"
+  },
+  {
+    "path": "tests/suite.test.js",
+    "url": "files/tests/suite.test.js",
+    "type": "js",
+    "text": true,
+    "bytes": 4554,
+    "html_url": "documentos/075.html"
+  }
+]

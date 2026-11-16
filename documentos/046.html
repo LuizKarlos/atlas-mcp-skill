@@ -1,0 +1,78 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_call_error.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_call_error.test.js</h1><!--email_off--><pre>import { test } from &quot;node:test&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { run } from &quot;../src/commands/call.js&quot;;
+
+async function runWith(result) {
+  const lines = [];
+  const originalLog = console.log;
+  const originalExitCode = process.exitCode;
+  console.log = (...parts) =&gt; {
+    lines.push(parts.map((p) =&gt; (typeof p === &quot;string&quot; ? p : JSON.stringify(p))).join(&quot; &quot;));
+  };
+  process.exitCode = undefined;
+  let failure = null;
+  try {
+    await run({ positionals: [&quot;atlas.health&quot;, &quot;{}&quot;], flags: { json: true }, callToolFn: async () =&gt; result });
+  } catch (e) {
+    failure = e;
+  } finally {
+    console.log = originalLog;
+  }
+  const exitCode = process.exitCode;
+  process.exitCode = originalExitCode;
+  if (failure) throw failure;
+  return { exitCode, stdout: lines.join(&quot;\n&quot;) };
+}
+
+test(&quot;CALL_ISERROR&quot;, async () =&gt; {
+  const result = { isError: true, content: [{ type: &quot;text&quot;, text: &quot;x&quot; }] };
+  const { exitCode, stdout } = await runWith(result);
+  assert.equal(exitCode, 1);
+  assert.deepEqual(JSON.parse(stdout), result);
+});
+
+test(&quot;CALL_STATUS_ERROR&quot;, async () =&gt; {
+  const result = { status: &quot;error&quot; };
+  const { exitCode, stdout } = await runWith(result);
+  assert.equal(exitCode, 1);
+  assert.deepEqual(JSON.parse(stdout), result);
+});
+
+test(&quot;CALL_OK&quot;, async () =&gt; {
+  const result = { status: &quot;ok&quot;, data: 1 };
+  const { exitCode, stdout } = await runWith(result);
+  assert.ok(exitCode === 0 || exitCode == null);
+  assert.deepEqual(JSON.parse(stdout), result);
+});
+
+test(&quot;CALL_BUSINESS_FAILURE_MATRIX&quot;, async () =&gt; {
+  const failCases = [
+    { structuredContent: { status: &quot;error&quot; } },
+    { structuredContent: { error_code: &quot;INVALID_ARGUMENT&quot; } },
+    { content: [{ type: &quot;text&quot;, text: JSON.stringify({ status: &quot;error&quot; }) }] },
+    { content: [{ type: &quot;text&quot;, text: JSON.stringify({ error_code: &quot;NO_EXECUTABLE_ROUTE&quot; }) }] },
+    { status: &quot;FAILED&quot; },
+    { structuredContent: { status: &quot;NOT_EXECUTED&quot; } },
+    { content: [{ type: &quot;text&quot;, text: JSON.stringify({ status: &quot;BLOCKED&quot; }) }] },
+    { structuredContent: { status: &quot;MALFORMED_RESULT&quot; } },
+    { content: [{ type: &quot;text&quot;, text: JSON.stringify({ status: &quot;INSUFFICIENT_EVIDENCE&quot; }) }] },
+    { structuredContent: { status: &quot;SKIPPED&quot;, exit_code: 2 } },
+    { content: [{ type: &quot;text&quot;, text: JSON.stringify({ status: &quot;SKIPPED&quot;, error_code: &quot;ERR&quot; }) }] },
+  ];
+  for (const r of failCases) {
+    const { exitCode } = await runWith(r);
+    assert.equal(exitCode, 1);
+  }
+  const okCases = [
+    { content: [{ type: &quot;text&quot;, text: &quot;texto nao json&quot; }], status: &quot;ok&quot; },
+    { content: [{ type: &quot;text&quot;, text: JSON.stringify({ status: &quot;ok&quot; }) }], structuredContent: { status: &quot;ok&quot; } },
+    { status: &quot;SKIPPED&quot;, reason: &quot;cached&quot;, exit_code: 0 },
+    { structuredContent: { status: &quot;SKIPPED&quot;, skip_record: { id: 1 } } },
+    { content: [{ type: &quot;text&quot;, text: JSON.stringify({ status: &quot;SKIPPED&quot;, error: { code: 500 } }) }] },
+  ];
+  for (const r of okCases) {
+    const { exitCode } = await runWith(r);
+    assert.ok(exitCode === 0 || exitCode == null);
+  }
+});
+</pre><!--/email_off--></main></body></html>

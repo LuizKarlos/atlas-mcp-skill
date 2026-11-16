@@ -1,0 +1,38 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_docs_audit.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_docs_audit.test.js</h1><!--email_off--><pre>import { readFileSync } from &#x27;node:fs&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { dirname, join } from &#x27;node:path&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const root = join(dirname(fileURLToPath(import.meta.url)), &#x27;..&#x27;);
+const skill = readFileSync(join(root, &#x27;megabrain-audit/SKILL.md&#x27;), &#x27;utf8&#x27;);
+const merkle = readFileSync(join(root, &#x27;megabrain-audit/references/merkle-ledger-spec.md&#x27;), &#x27;utf8&#x27;);
+const receipt = readFileSync(join(root, &#x27;megabrain-audit/references/receipt-ed25519-verification.md&#x27;), &#x27;utf8&#x27;);
+const replay = readFileSync(join(root, &#x27;megabrain-audit/references/time-travel-replay.md&#x27;), &#x27;utf8&#x27;);
+const docs = skill + merkle + receipt + replay;
+
+test(&#x27;DOCS_AUDIT_CHAIN&#x27;, () =&gt; {
+  assert.match(skill, /merkle_verify\.js/);
+  assert.match(docs, /somente a cadeia local/);
+  assert.match(docs, /Referência não é assinatura verificada/);
+  assert.doesNotMatch(skill, /--work_id/);
+  assert.doesNotMatch(docs, new RegExp([&#x27;Luiz&#x27;, &#x27;Karlos&#x27;].join(&#x27;&#x27;)));
+});
+
+test(&#x27;DOCS_AUDIT_EXPORT&#x27;, () =&gt; {
+  assert.match(skill, /atlas\.export_evidence/);
+  assert.match(merkle, /falha fechado/);
+});
+
+test(&#x27;DOCS_AUDIT_REPLAY&#x27;, () =&gt; {
+  assert.match(receipt, /não prova Ed25519/);
+  assert.match(replay, /JSON objeto/);
+  assert.match(docs, /não prova Ed25519/);
+  assert.match(skill, /Number\.isSafeInteger/);
+  assert.match(skill, /\{blocks/);
+  assert.doesNotMatch(skill, /target_index/);
+  const calls = [...skill.matchAll(/megabrain call (\S+) &#x27;([^&#x27;]+)&#x27;/g)].map(m =&gt; ({ tool: m[1], json: JSON.parse(m[2]) }));
+  assert.ok(calls.length &gt;= 2);
+  assert.ok(calls.find(c =&gt; c.tool === &#x27;atlas.export_evidence&#x27;)?.json.project_id);
+});
+</pre><!--/email_off--></main></body></html>

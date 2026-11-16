@@ -1,0 +1,27 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>src/commands/status.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>src/commands/status.js</h1><!--email_off--><pre>import { checkHealth, listTools } from &quot;../client.js&quot;;
+import { getEndpoint } from &quot;../config.js&quot;;
+
+// ponytail: unary health ping; upgrade to full telemetry snapshot when dashboard ready
+export async function run({ flags = {} }) {
+  const endpoint = flags.endpoint || getEndpoint();
+  const explicitToken = flags.token || process.env.MEGABRAIN_TOKEN;
+  const health = await checkHealth({ endpoint, token: explicitToken });
+  const rawStatus = typeof health?.status === &quot;string&quot; ? health.status.toUpperCase() : &quot;&quot;;
+  let isOk = Boolean(health) &amp;&amp; !health.isError &amp;&amp; health.ready !== false &amp;&amp; health.kernel_ready !== false &amp;&amp; health.ok !== false &amp;&amp;
+    ([&quot;READY&quot;, &quot;HEALTHY&quot;, &quot;OK&quot;].includes(rawStatus) || (rawStatus === &quot;&quot; &amp;&amp; (health.ready === true || health.ok === true)));
+  if (isOk &amp;&amp; explicitToken) {
+    try { await listTools({ endpoint, token: explicitToken }); } catch { isOk = false; }
+  }
+  if (!isOk) process.exitCode = 1;
+  const status = isOk
+    ? (health?.status || &quot;ok&quot;)
+    : ([&quot;ERROR&quot;, &quot;DEGRADED&quot;, &quot;NOT_READY&quot;].includes(rawStatus) ? health.status : (health?.ready === false ? &quot;not_ready&quot; : &quot;error&quot;));
+  const out = { endpoint, status, health };
+  if (flags.json) {
+    console.log(JSON.stringify(out));
+  } else {
+    console.log(`Endpoint: ${endpoint}\nStatus: ${out.status}`);
+  }
+  return out;
+}
+</pre><!--/email_off--></main></body></html>

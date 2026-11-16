@@ -1,0 +1,1966 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Volume 01 — leitura integral</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>Volume 01 — leitura integral</h1><!--email_off--><section><h2>.gitignore</h2><pre>node_modules
+.env
+*.log
+.DS_Store
+reports/
+</pre></section><section><h2>DOCS.md</h2><pre># Documentação — @megabrain/cli (Atlas v1)
+
+Índice único para leitura por agentes. Todos os caminhos são relativos à raiz deste repositório.
+
+## Ordem de leitura
+
+1. `README.md` — instalação, comandos e matriz de sub-skills.
+2. `SPEC.md` — contrato da superfície: 27 tools `atlas.*`, identidade e limites.
+3. `ROADMAP.md` — estado do pacote e cobertura documentada.
+4. `megabrain-surface/SKILL.md` — catálogo completo das 27 tools, aliases, transporte e erros.
+5. Skills operacionais:
+   - `megabrain-orchestrate/SKILL.md`
+   - `megabrain-pipeline/SKILL.md`
+   - `megabrain-review/SKILL.md`
+   - `megabrain-audit/SKILL.md`
+   - `megabrain-context/SKILL.md`
+   - `megabrain-ui/SKILL.md`
+6. Referências profundas:
+   - `megabrain-orchestrate/references/mission-lifecycle.md`
+   - `megabrain-orchestrate/references/swarm-coordination.md`
+   - `megabrain-pipeline/references/dag-decomposition-rules.md`
+   - `megabrain-pipeline/references/topological-waves.md`
+   - `megabrain-pipeline/references/auto-healing-patterns.md`
+   - `megabrain-review/references/dual-blind-adjudication.md`
+   - `megabrain-review/references/anti-slop-patterns.md`
+   - `megabrain-review/references/voice-calibration.md`
+   - `megabrain-audit/references/merkle-ledger-spec.md`
+   - `megabrain-audit/references/receipt-ed25519-verification.md`
+   - `megabrain-audit/references/time-travel-replay.md`
+   - `megabrain-context/references/ast-virtualization.md`
+   - `megabrain-context/references/openapi-contract-synthesis.md`
+   - `megabrain-ui/references/visual-tdd-methodology.md`
+   - `megabrain-ui/references/design-tokens-spec.md`
+   - `megabrain-ui/references/wcag-target-sizes.md`
+
+## Regras de leitura
+
+- Trate cada documento como contrato: nomes de tools, assinaturas e limites são normativos.
+- O servidor canônico é `https://mcp.atlascommand.dev/mcp`; o endpoint local é `http://127.0.0.1:&lt;porta&gt;/mcp`.
+- Não use `megabrain.*` nem `mcp__megabrain__*`: a superfície atual é somente `atlas.*`.
+- Exemplos `megabrain call ...` assumem CLI autenticada; não há credenciais neste repositório.
+- Em conflito entre um exemplo e uma assinatura, a assinatura da seção da tool prevalece.
+</pre></section><section><h2>README.md</h2><pre># Atlas MCP companion
+
+Pacote de skills e instalador mínimo para o servidor Atlas v1 (27 tools `atlas.*`).
+
+Servidor canônico: [atlascommand.dev](https://atlascommand.dev) (`runtime/atlas_mcp_server.py`, 27 tools `atlas.*`).
+
+O servidor Atlas governa missões, leases, artifacts, verificação Docker e evidência. A LLM executa o trabalho no próprio harness. Este pacote ensina o contrato MCP atual. Não há aliases para as 36 tools `megabrain.*` removidas.
+
+## Contrato
+
+| Onde | Valor |
+| :--- | :--- |
+| Superfície MCP | 27 tools `atlas.*`, schema fechado, sem alias |
+| Identidade | conta `USER` (projetos) e conta `ADMIN` (keys). Atlas não tem roles técnicas |
+| Endpoint | `https://mcp.atlascommand.dev/mcp` (prod) ou `http://127.0.0.1:&lt;porta&gt;/mcp` (efêmero) |
+| Auth | `Authorization: Bearer &lt;atlas_user_…\|atlas_admin_…&gt;` |
+| Hermes | servidor `atlas` → tools `mcp__atlas__atlas_&lt;action&gt;` |
+| CLI | instalador + `call`; sem CLI de missão |
+
+Handshake `POST /mcp` e keepalive não são uso. Uso é `tools/call` de `atlas.*`.
+
+## Instalação
+
+Publicação pública ainda não existe e não foi executada (requer Node &gt;=18). Prepare o artefato beta verificável:
+
+```bash
+npm run release:pack
+(cd dist &amp;&amp; sha256sum -c megabrain-cli-4.0.0.tgz.sha256)
+npm install -g ./dist/megabrain-cli-4.0.0.tgz
+export MEGABRAIN_ENDPOINT=https://mcp.atlascommand.dev/mcp
+megabrain --version
+# Rollback por reinstalar versão anterior
+```
+
+```bash
+megabrain setup --dest .agents/skills --endpoint https://mcp.atlascommand.dev/mcp
+megabrain call atlas.health &#x27;{}&#x27;
+```
+
+No Hermes, o servidor chama-se `atlas`. Não instale a skill empacotada do repositório do servidor no lugar destas sete pastas.
+
+## Sub-Skills Matrix
+
+| Sub-Skill | Escopo |
+| :--- | :--- |
+| `megabrain-orchestrate` | Fluxo completo: projeto, missão, claim, verify, submit, evidência |
+| `megabrain-pipeline` | DAG acíclico em `atlas.create_mission` / `atlas.get_mission` |
+| `megabrain-review` | `atlas.submit_task_review`; same-account, não dual-blind |
+| `megabrain-audit` | `atlas.export_evidence`; ledger/receipts do servidor |
+| `megabrain-context` | Upload de bytes; AST/OpenAPI no harness local |
+| `megabrain-ui` | Visual/WCAG no harness local; não são tools MCP |
+| `megabrain-surface` | Catálogo das 27 tools, identidade USER/ADMIN, transporte |
+
+## Local Tooling Scripts
+
+- `dag_validator.js`: acyclicity and waves (`node scripts/dag_validator.js tasks.json`)
+- `merkle_verify.js`: local SHA-256 chain only, not Ed25519 (`node scripts/merkle_verify.js ledger.json`)
+- `ast_slice.js`: local regex outline; not server Python AST (`node scripts/ast_slice.js src/app.js`)
+- `wcag_check.js`: local JSON/flags contrast and target size; not CSS headless (`node scripts/wcag_check.js --fg=&quot;#ffffff&quot; --bg=&quot;#111827&quot; --width=44 --height=44`)
+
+Estes scripts rodam no harness. Não substituem `atlas.request_verification` nem `atlas.export_evidence`.
+</pre></section><section><h2>ROADMAP.md</h2><pre># Companion Atlas v1 — roadmap
+
+**Contrato:** 27 tools `atlas.*` no servidor Atlas (`3a10b116`). Este pacote é o mapa da LLM até essas tools.
+**Baseline anterior:** `4f819dd` descrevia 36 tools `megabrain.*`, CLI de missão, roles e aliases. Esse mapa não bate no socket.
+
+## 1. Por que reescrever
+
+Nos pares A/B de entrega (loja e teatro), o braço A recebeu este pacote + MCP no ar. Resultado: handshake/keepalive, zero `atlas.*`. Ligar ≠ usar.
+
+Causas:
+
+1. Skills ensinavam `megabrain.orchestrate` / `mcp__megabrain__*`. O servidor expõe `atlas.*`. Hermes registra `mcp__atlas__atlas_health`.
+2. `When to Use` falava em missão soberana/swarm, não em prova (hold, CSV, recibo).
+3. O brief de produto pedia app local e proibia API externa. Sem um passo que só o Atlas assina, o modelo escreve `app.py`.
+
+## 2. Feito nesta fatia
+
+- [x] Catálogo das 27 tools `atlas.*` em `megabrain-surface`.
+- [x] Fluxo `health → project → manifest → mission → claim → upload → request_verification → get_verification → submit → export_evidence`.
+- [x] Identidade canônica: `USER` / `ADMIN`. Sem roles Atlas (`mission_compiler`, etc.).
+- [x] Sem aliases `megabrain.*`. Sem `grant_approval`, checkpoint, swarm, AST/UI no servidor.
+- [x] CLI `call` aceita `atlas.&lt;tool&gt;` e `atlas_&lt;tool&gt;`.
+- [x] Setup grava servidor `atlas`, não `megabrain`.
+
+## 3. Aberto
+
+- [ ] Publicar o pacote (npm público ainda não existe).
+- [ ] Pin do commit deste pacote no A/B (`docs/ALPHA_EVALUATION.md` do Atlas) depois do merge.
+- [ ] Próximo par A/B: brief com passo insubstituível (recibo/`chain_verified`). Gate `NO_USE` se A não chamar `atlas.*` de trabalho.
+- [ ] Reduzir o companion a instalador mínimo (SPEC §14): `login`/`status`/`call` de missão saem quando o harness nativo cobrir o call.
+
+## 4. Aceite do companion
+
+Instalação limpa copia as sete pastas e configura endpoint/key sem executar tool. Exemplos passam contra servidor v1 e não citam tool removida. Hermes com `mcp_servers.atlas` descobre 26 names `mcp__atlas__atlas_*`.
+</pre></section><section><h2>SPEC.md</h2><pre># Companion Atlas v1 — contrato
+
+Este pacote ensina a LLM a usar o servidor Atlas ([atlascommand.dev](https://atlascommand.dev)). Não é o servidor.
+
+## Superfície
+
+27 tools `atlas.*`. Sem alias `megabrain.*`. Sem resources. Sem prompts MCP. Sem roles Atlas.
+
+Identidade: conta `USER` (projetos) e conta `ADMIN` (keys). A autoridade é a API key, não um campo `role`.
+
+No Hermes o servidor chama-se `atlas`. O nome de chamada é `mcp__atlas__atlas_&lt;action&gt;`.
+
+## Fluxo de trabalho
+
+`health → create_project → register_check_manifest → create_mission → claim_task → begin_upload/complete_upload → request_verification → get_verification → submit_task_result → export_evidence`
+
+Submeter antes de `CHECK_EXECUTION_VERIFIED` devolve `VERIFICATION_REQUIRED`. Handshake/keepalive não contam como uso.
+
+## O que a LLM faz no harness
+
+AST, OpenAPI, WCAG, anti-slop, visual TDD, DAG local. Outputs viram bytes enviados ao Atlas. Não existem tools de AST/UI/swarm no servidor.
+
+## O que o Atlas assina
+
+Hash de artifact, run Docker, ledger, receipt Ed25519, `chain_verified`. A LLM não declara `VERIFIED`.
+</pre></section><section><h2>bin/megabrain.js</h2><pre>#!/usr/bin/env node
+import { parseArgs } from &#x27;node:util&#x27;;
+import { existsSync, readFileSync } from &#x27;node:fs&#x27;;
+import process from &#x27;node:process&#x27;;
+
+if (typeof process.loadEnvFile === &#x27;function&#x27; &amp;&amp; existsSync(&#x27;.env&#x27;)) {
+  try { process.loadEnvFile(); } catch {}
+}
+
+const pkg = JSON.parse(readFileSync(new URL(&#x27;../package.json&#x27;, import.meta.url), &#x27;utf8&#x27;));
+
+const { values: flags, positionals } = parseArgs({
+  args: process.argv.slice(2),
+  options: {
+    json: { type: &#x27;boolean&#x27; },
+    endpoint: { type: &#x27;string&#x27; },
+    dest: { type: &#x27;string&#x27; },
+    &#x27;write-mcp&#x27;: { type: &#x27;boolean&#x27; },
+    help: { type: &#x27;boolean&#x27;, short: &#x27;h&#x27; },
+    version: { type: &#x27;boolean&#x27;, short: &#x27;v&#x27; },
+  },
+  allowPositionals: true,
+  strict: true,
+});
+if (flags.token !== undefined) { console.error(&#x27;--token is not supported&#x27;); process.exit(1); }
+
+const command = positionals[0];
+
+if (flags.version || command === &#x27;version&#x27;) {
+  console.log(pkg.version);
+  process.exit(0);
+}
+
+if (flags.help || command === &#x27;help&#x27; || !command) {
+  console.log(`MegaBrain CLI v${pkg.version}
+
+Usage:
+  megabrain &lt;command&gt; [options]
+
+Commands:
+  login       Authenticate with MegaBrain MCP server
+  status      Check connection and server status
+  call        Execute an MCP tool or pipeline task
+  setup       Configure environment and harness integrations
+  version     Display CLI version
+  help        Display help information
+
+Options:
+  -h, --help       Show help
+  -v, --version    Show version
+  --json           Output results in JSON format
+  --dest &lt;dir&gt;     Destination directory for setup
+  --write-mcp       Write MCP configuration during setup
+  --endpoint &lt;url&gt; MCP server endpoint (default: $MEGABRAIN_ENDPOINT or https://mcp.atlascommand.dev/mcp)`);
+  process.exit(0);
+}
+
+const SUBCOMMANDS = new Set([&#x27;login&#x27;, &#x27;status&#x27;, &#x27;call&#x27;, &#x27;setup&#x27;]);
+if (!SUBCOMMANDS.has(command)) {
+  console.error(`Unknown command: &#x27;${command}&#x27;. Run &#x27;megabrain --help&#x27; for available commands.`);
+  process.exit(1);
+}
+
+// ponytail: direct file resolution for command modules; upgrade when complex routing needed.
+const candidates = [
+  new URL(`../src/commands/${command}.js`, import.meta.url),
+  new URL(`../src/${command}.js`, import.meta.url),
+];
+const target = candidates.find((url) =&gt; existsSync(url));
+
+if (!target) {
+  console.error(`Command &#x27;${command}&#x27; is not yet implemented.`);
+  process.exit(1);
+}
+
+try {
+  const mod = await import(target.href);
+  const handler = mod.run || mod.default || mod[command];
+  if (typeof handler !== &#x27;function&#x27;) {
+    throw new Error(`Command module &#x27;${command}&#x27; does not export a runnable function.`);
+  }
+  await handler({ positionals: positionals.slice(1), flags });
+} catch (err) {
+  console.error(`Error executing &#x27;${command}&#x27;:`, err.message);
+  process.exit(1);
+}
+</pre></section><section><h2>megabrain-audit/SKILL.md</h2><pre>---
+name: megabrain-audit
+version: &quot;4.0.0&quot;
+description: &quot;Export Atlas evidence packs and verify local SHA-256 chains; Ed25519 stays on the server.&quot;
+allowed-tools: [&quot;mcp__atlas__*&quot;, &quot;terminal&quot;]
+---
+
+# Atlas Audit
+
+Evidence lives on Atlas. `atlas.export_evidence` returns receipts, ledger blocks, and `chain_verified`. Local `scripts/merkle_verify.js` checks SHA-256 links only.
+
+## When to Use
+
+- Need a receipt the sandbox cannot forge.
+- Checking a downloaded ledger file offline.
+- Proving `chain_verified` after a verified mission.
+
+## NOT for
+
+- End-to-end claim/verify (`megabrain-orchestrate`).
+- DAG create (`megabrain-pipeline`).
+- Headless visual TDD (`megabrain-ui`).
+- Calling `megabrain.export_audit_ledger`, `export_evidence_pack`, `time_travel_replay`, `verify_subtask`.
+- Time-travel / checkpoint (removed in v1).
+
+## Workflow
+
+Execute via `megabrain call` with a JSON object. The parser rejects non-objects.
+
+```bash
+# 1. Export soberano. Sem chave válida o kernel falha fechado.
+megabrain call atlas.export_evidence &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;}&#x27;
+
+# 2. merkle_verify.js verifica SOMENTE a cadeia local SHA-256. Não verifica Ed25519 nem root soberano.
+# Referência/arquivo local não é assinatura verificada.
+node scripts/merkle_verify.js ledger.json
+
+# 3. Evidence pack is export_evidence. Mock/parser não é prova live.
+megabrain call atlas.get_verification &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;run_id&quot;:&quot;run_1&quot;}&#x27;
+
+# 4. Replay usa JSON objeto, não flags. Envelope/receipts/replay seguem o schema real.
+# Atlas has no time_travel_replay. Reconstruct from exported blocks locally.
+```
+
+Índice de bloco: `typeof number` e `Number.isSafeInteger`; strings/null/float/unsafe são rejeitados.
+Envelope aceito: array puro ou `{blocks:[...]}`; qualquer chave extra (attestation/receipt/certificate/merkle_root/signature) é `unsupported` no script local.
+
+## Cryptographic Invariants &amp; Audit Guarantees
+
+- **Hash Chain Continuity**: Each block enforces `hash == SHA-256(canonical_json(block - hash))` and links to `previous_hash`.
+- **Non-Repudiation**: Verification receipts require valid Ed25519 signatures from trusted verifier keys.
+- **Fail-Closed Verification**: Any hash divergence, malformed payload, or broken link halts downstream validation.
+
+## References
+
+- Merkle ledger specification: [references/merkle-ledger-spec.md](references/merkle-ledger-spec.md)
+- Ed25519 receipt verification: [references/receipt-ed25519-verification.md](references/receipt-ed25519-verification.md)
+- Time-travel deterministic replay: [references/time-travel-replay.md](references/time-travel-replay.md)
+</pre></section><section><h2>megabrain-audit/references/merkle-ledger-spec.md</h2><pre># Merkle Ledger &amp; Evidence Pack Specification
+
+Governs immutable cryptographic event recording via Atlas MCP (`https://mcp.atlascommand.dev/mcp`).
+
+## Ledger Architecture (`atlas.export_evidence`)
+
+Enforces append-only cryptographic provenance for mission lifecycles and DAG state transitions:
+- **Audit Ledger**: Sequential SHA-256 hash chain verifying state sequence integrity.
+- **Evidence Pack**: Self-contained bundle with ledger blocks, receipts, and execution artifacts.
+- **Tamper Detection**: Any modification to historical block contents invalidates downstream hash links.
+
+## SHA-256 Block Schema
+
+Each ledger entry adheres to the canonical block structure:
+- `index`: Monotonically increasing sequence integer (`uint64`).
+- `previous_hash`: Hex-encoded SHA-256 digest of preceding block (`&quot;0&quot;` for genesis).
+- `timestamp`: ISO-8601 UTC string recording exact transition time.
+- `event_type`: Categorical identifier (`TASK_DISPATCHED`, `VERIFICATION_GATE`, etc.).
+- `data`: Canonical serialized JSON object containing event context and assertions.
+- `hash`: SHA-256 digest over `canonical_json({index, previous_hash, timestamp, event_type, data})`.
+
+```bash
+megabrain call atlas.export_evidence &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;}&#x27;
+node scripts/merkle_verify.js ledger.json
+```
+
+scripts/merkle_verify.js verifica somente a cadeia local. Export Merkle/Ed25519 soberano é atlas.export_evidence. Sem chave válida o kernel falha fechado. Referência não é assinatura verificada.
+</pre></section><section><h2>megabrain-audit/references/receipt-ed25519-verification.md</h2><pre># Ed25519 Cryptographic Verification Receipts
+
+Governs asymmetric attestation for Atlas receipts (`https://mcp.atlascommand.dev/mcp`).
+
+## Asymmetric Attestation Protocol
+
+Every verified task output is sealed with an asymmetric cryptographic signature:
+- **Keypair Roles**: Atlas holds a private Ed25519 signing key; verifier instances register trusted public keys.
+- **Receipt Attestation**: Verification receipts sign canonical summaries of task execution (`project_id`, `mission_id`, `task_id`).
+- **Tamper Invariance**: Signatures provide non-repudiation and prevent forgery or retro-fitted test passes.
+
+## Receipt Envelope &amp; Verification Flow
+
+Verification receipts encapsulate signature metadata within a canonical envelope:
+- `signer_id`: Public identity of signing authority.
+- `public_key`: Hex/Base64 Ed25519 public key corresponding to signing identity.
+- `payload_hash`: SHA-256 digest of the canonical verification receipt body.
+- `signature`: 64-byte Ed25519 signature generated over `payload_hash`.
+
+Do not call `megabrain.verify_subtask`. Ask Atlas for `atlas.export_evidence` and `atlas.get_verification`.
+
+Envelope/receipts seguem o schema real. Presença de referência ou campo `signature` não prova Ed25519. Root ou assinatura que não verifica não é aprovada. não prova Ed25519.
+</pre></section><section><h2>megabrain-audit/references/time-travel-replay.md</h2><pre># Time-Travel Deterministic Replay
+
+Atlas v1 does not replay or roll back missions. Reconstruct from `atlas.export_evidence` blocks locally.
+
+## Local reconstruction
+
+- **Sequential Event Sourcing**: Play exported blocks from genesis to the head.
+- **Hash-Chain Validation**: `scripts/merkle_verify.js`.
+- **No server replay**: `megabrain.time_travel_replay` was removed.
+
+Replay usa JSON objeto, não flags `--work_id`. Cadeia local válida não implica receipt Ed25519 verificado.
+
+Local envelopes may include `target_event_id` or `target_timestamp` when walking a saved file. `target_index` is not part of the contract.
+</pre></section><section><h2>megabrain-context/SKILL.md</h2><pre>---
+name: megabrain-context
+version: &quot;4.0.0&quot;
+description: &quot;Slice local AST outlines and upload bytes to Atlas; no server-side AST or OpenAPI tools.&quot;
+allowed-tools: [&quot;mcp__atlas__*&quot;, &quot;terminal&quot;]
+---
+
+# Atlas Context
+
+AST slicing and OpenAPI drafts run in this harness. Atlas stores the bytes you upload. There is no `slice_ast_context` or `synthesize_backend_contract` on the server.
+
+## When to Use
+
+- Need a local outline before claiming a task.
+- Need Atlas to hash a snapshot or source bundle (`atlas.begin_upload` / `atlas.complete_upload`).
+- Building an OpenAPI 3.1 file locally, then uploading it.
+
+## NOT for
+
+- End-to-end claim/verify (`megabrain-orchestrate`).
+- DAG create (`megabrain-pipeline`).
+- Headless visual TDD (`megabrain-ui`).
+- Calling `megabrain.slice_ast_context`, `dispatch_subtask`, `synthesize_backend_contract`.
+
+## Workflow
+
+Execute via `megabrain call` with a JSON object. The parser rejects non-objects.
+
+```bash
+# 1. AST Python no servidor não existe. Outline local:
+node scripts/ast_slice.js src/server.ts
+
+# 2. ast_slice.js é outline local limitado (regex). Preserva interface TypeScript; não é AST semântico.
+# Sem flags de JSON. Mock/parser não é prova live. Sem prometer teto de tokens sem medir.
+
+# 3. Upload the slice or snapshot. work_id/task_id reais já criados via Atlas.
+megabrain call atlas.begin_upload &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;,&quot;task_id&quot;:&quot;t_impl&quot;,&quot;execution_id&quot;:&quot;ex_1&quot;,&quot;lease_id&quot;:&quot;lease_1&quot;,&quot;fence_token&quot;:1,&quot;nonce&quot;:&quot;n1&quot;}&#x27;
+megabrain call atlas.complete_upload &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;session_id&quot;:&quot;up_1&quot;,&quot;data_text&quot;:&quot;export function foo(): void {}&quot;}&#x27;
+
+# 4. OpenAPI 3.1 com JSON objeto, não flags — write the file locally, then upload.
+```
+
+Dispatch com scope explícito is a harness rule (`allowed_scope`), not an Atlas tool.
+
+## Context Minification &amp; Contract Invariants
+
+- **Context Ceiling**: Outline local e AST servidor são evidências diferentes. Não prometer teto de tokens sem medir o dispatch real.
+- **Strict OpenAPI 3.1**: Enforce `additionalProperties: false` on inputs and outputs to prevent untyped schema drift.
+- **Deterministic Fixtures**: Seed contract mocks deterministically to guarantee reproducible integration testing.
+- Sintaxes exercitadas pelo outline local (regex): interface TS multilinha, assinatura de função JS e def/class Python; fixture: tests/issue351_ast_interface.test.js e tests/issue351_ast_function_signature.test.js; método: regex/balanceamento de chaves; limite: não é AST semântico e não cobre sintaxe fora dessas formas.
+
+## References
+
+- AST virtualization specification: [references/ast-virtualization.md](references/ast-virtualization.md)
+- OpenAPI contract synthesis specification: [references/openapi-contract-synthesis.md](references/openapi-contract-synthesis.md)
+</pre></section><section><h2>megabrain-context/references/ast-virtualization.md</h2><pre># AST Context Virtualization Specification
+
+Governs local outline extraction. Atlas v1 does not parse source.
+
+## Context Virtualization Principles
+
+Virtualizes source files into structural outlines to prevent token bloat during agent dispatch:
+- **Surgical Token Reduction**: Compresses source footprints. Sem medir, não prometa &lt;3k.
+- **Structural Signature Extraction**: Preserves type definitions, interfaces, function signatures, and exported classes.
+- **Implementation Body Discard**: Strips routine implementation blocks.
+- **Polyglot Parsing Support**: Handles JavaScript, TypeScript, and Python signatures deterministically.
+
+## Execution via local CLI (`scripts/ast_slice.js`)
+
+- **Local AST Slicer (`scripts/ast_slice.js`)**: Fast outline generation without remote RPC latency.
+- **MCP**: upload the outline with `atlas.complete_upload`. `megabrain.slice_ast_context` was removed.
+
+```bash
+node scripts/ast_slice.js src/service.ts
+```
+
+scripts/ast_slice.js é outline local limitado e preserva contratos de interface TypeScript. Sem flags `--json`. Sem prometer &lt;3k tokens sem medir.
+</pre></section><section><h2>megabrain-context/references/openapi-contract-synthesis.md</h2><pre># OpenAPI 3.1 Contract Synthesis Specification
+
+OpenAPI drafts are local files. Atlas hashes whatever you upload.
+
+## Strict OpenAPI 3.1 Synthesis
+
+- **Mechanical Contract Synthesis**: Generate OpenAPI 3.1 in the harness.
+- **Strict Schema Constraints**: Enforces `additionalProperties: false`.
+- **Deterministic Fixtures**: Reproducible mocks.
+- **Explicit Route Mapping**: HTTP methods, path parameters, status codes.
+
+Write the file, then:
+
+```bash
+megabrain call atlas.complete_upload &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;session_id&quot;:&quot;up_1&quot;,&quot;data_text&quot;:&quot;{\&quot;openapi\&quot;:\&quot;3.1.0\&quot;}&quot;}&#x27;
+```
+
+Nomes qualificados e JSON objeto. Flags `--operation_id` não são suportadas pelo CLI. `synthesize_backend_contract` was removed.
+</pre></section><section><h2>megabrain-orchestrate/SKILL.md</h2><pre>---
+name: megabrain-orchestrate
+version: &quot;4.0.0&quot;
+description: &quot;Run Atlas v1 missions: claim, verify, submit, and export evidence via atlas.* MCP tools.&quot;
+allowed-tools: [&quot;mcp__atlas__*&quot;, &quot;terminal&quot;]
+---
+
+# Atlas Orchestrate
+
+Use Atlas to govern a mission you execute in this harness: project, DAG, exclusive lease, Docker verification, and signed evidence. Atlas does not write your files. You do. Atlas attests what it verified.
+
+## When to Use
+
+- The user needs a receipt, ledger, or verified check that the sandbox cannot sign.
+- Work has more than one task with a real dependency (implement then review).
+- A later claim must not steal a live lease.
+
+## NOT for
+
+- Building an app that only needs local HTTP and SQLite. Disk replaces Atlas there.
+- AST slicing (`megabrain-context` local scripts).
+- WCAG or visual TDD (`megabrain-ui` local scripts).
+- Inventing `chain_verified: true` without `atlas.export_evidence`.
+
+## Workflow
+
+Call the Hermes tool `mcp__atlas__atlas_&lt;action&gt;` (server name `atlas`). Equivalent CLI: `megabrain call atlas.&lt;action&gt;` with a JSON object. The parser rejects non-objects.
+
+Ordem obrigatória quando a tarefa exige verificação:
+
+`claim → begin_upload/complete_upload → request_verification → get_verification → submit_task_result → export_evidence`
+
+Submeter antes de `CHECK_EXECUTION_VERIFIED` devolve `VERIFICATION_REQUIRED` e preserva o lease.
+
+```bash
+# 1. Liveness. Runtime devolve HEALTHY.
+megabrain call atlas.health &#x27;{}&#x27;
+
+# 2. Isolated project. project_id is required on later calls.
+megabrain call atlas.create_project &#x27;{&quot;name&quot;:&quot;Alpha&quot;}&#x27;
+
+# 3. Typed check manifest. No free-form shell.
+megabrain call atlas.register_check_manifest &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;manifest_id&quot;:&quot;man_py&quot;,&quot;manifest_payload&quot;:{&quot;checks&quot;:[{&quot;name&quot;:&quot;unit&quot;,&quot;adapter&quot;:&quot;python.pytest&quot;,&quot;args&quot;:[&quot;-q&quot;]}]}}&#x27;
+
+# 4. Acyclic DAG. prompt/idempotency_key/workspace_root are not Atlas fields.
+megabrain call atlas.create_mission &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;,&quot;tasks&quot;:[{&quot;task_id&quot;:&quot;t_impl&quot;,&quot;manifest_id&quot;:&quot;man_py&quot;},{&quot;task_id&quot;:&quot;t_review&quot;}],&quot;dependencies&quot;:[{&quot;task_id&quot;:&quot;t_review&quot;,&quot;depends_on_task_id&quot;:&quot;t_impl&quot;}]}&#x27;
+
+# 5. Claim: execution_id, lease_id, fence_token, nonce. Work locally.
+megabrain call atlas.claim_task &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;}&#x27;
+
+# 6. Bytes in, hash on the server.
+megabrain call atlas.begin_upload &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;,&quot;task_id&quot;:&quot;t_impl&quot;,&quot;execution_id&quot;:&quot;ex_1&quot;,&quot;lease_id&quot;:&quot;lease_1&quot;,&quot;fence_token&quot;:1,&quot;nonce&quot;:&quot;n1&quot;}&#x27;
+megabrain call atlas.complete_upload &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;session_id&quot;:&quot;up_1&quot;,&quot;data_text&quot;:&quot;ok&quot;}&#x27;
+
+# 7. Snapshot the work. Worker signs. Client never writes the verdict.
+megabrain call atlas.request_verification &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;,&quot;task_id&quot;:&quot;t_impl&quot;,&quot;execution_id&quot;:&quot;ex_1&quot;,&quot;snapshot_b64&quot;:&quot;UEsDBBQAAAAAAD19bF2iim3vFwAAABcAAAAIAAAAY2hlY2sucHlpbXBvcnQgc3lzCnN5cy5leGl0KDApClBLAQIUAxQAAAAAAD19bF2iim3vFwAAABcAAAAIAAAAAAAAAAAAAACAAQAAAABjaGVjay5weVBLBQYAAAAAAQABADYAAAA9AAAAAAA=&quot;}&#x27;
+megabrain call atlas.get_verification &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;run_id&quot;:&quot;run_1&quot;}&#x27;
+
+# 8. Same lease/fence/nonce. Then export.
+megabrain call atlas.submit_task_result &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;lease_id&quot;:&quot;lease_1&quot;,&quot;fence_token&quot;:1,&quot;nonce&quot;:&quot;n1&quot;,&quot;result_status&quot;:&quot;COMPLETED&quot;}&#x27;
+megabrain call atlas.export_evidence &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;}&#x27;
+```
+
+Renew before expiry: `atlas.renew_task_lease`. Do not call `megabrain.orchestrate`, `coordinate_mission_swarm`, `create_checkpoint` or `rollback_checkpoint`: they are not on this server. Sem evidence_bundle o kernel antigo bloqueava IMPLEMENTATION com INSUFFICIENT_EVIDENCE; no Atlas v1 a prova é `request_verification` + `export_evidence`. Sem worker o run fica PENDING, não SUCCESS. Sem executor o kernel antigo devolvia NOT_EXECUTED; o CLI não envia callable JSON.
+
+## UX &amp; Operational Rules
+
+- **Anti-Context-Dumping**: Dispatch minimal context packets (pacotes mínimos delimitados). Never dump full workspace trees.
+- **Structured Communication**: Return project_id, mission_id, lease_id, run_id, and `chain_verified`.
+
+## References
+
+- Mission lifecycle: [references/mission-lifecycle.md](references/mission-lifecycle.md)
+- Swarm removed: [references/swarm-coordination.md](references/swarm-coordination.md)
+</pre></section><section><h2>megabrain-orchestrate/references/mission-lifecycle.md</h2><pre># Mission Lifecycle Specification
+
+Governs Atlas v1 mission state via MCP (`https://mcp.atlascommand.dev/mcp`). Companion CLI may call tools; it does not own mission logic.
+
+## Lifecycle States
+
+- **ACTIVE**: `atlas.create_mission` persisted an acyclic DAG. Tasks start `PENDING`.
+- **RUNNING**: `atlas.claim_task` issued lease, fence, nonce; execution is `RUNNING`.
+- **VERIFICATION**: `atlas.request_verification` created a `PENDING` run; worker records the signed result.
+- **COMPLETED**: terminal DAG tasks submitted after `CHECK_EXECUTION_VERIFIED` when required.
+- **ARCHIVED**: `atlas.archive_mission`. Stays archived.
+- **FAILED**: unrecoverable check or exhausted lease; fail-closed.
+
+```
+ACTIVE ──&gt; RUNNING ──┬──&gt; VERIFICATION ──&gt; RUNNING
+                     ├──&gt; COMPLETED
+                     └──&gt; ARCHIVED / FAILED
+```
+
+There is no CHECKPOINT state. Atlas v1 does not snapshot or roll back client files.
+
+## Protocol
+
+1. **Create** (`atlas.create_mission`): `project_id`, `mission_id`, `tasks`, optional `dependencies`.
+2. **Claim** (`atlas.claim_task`): returns `execution_id`, `lease_id`, `fence_token`, `nonce`.
+3. **Verify** (`atlas.request_verification` then `atlas.get_verification`).
+4. **Submit** (`atlas.submit_task_result`) with the same lease/fence/nonce.
+5. **Export** (`atlas.export_evidence`).
+
+```bash
+megabrain call atlas.create_mission &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;,&quot;tasks&quot;:[{&quot;task_id&quot;:&quot;t_impl&quot;}]}&#x27;
+megabrain call atlas.claim_task &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;}&#x27;
+```
+
+`inspect` de missão inexistente devolve MISSION_NOT_FOUND. Mock/parser não é prova live.
+</pre></section><section><h2>megabrain-orchestrate/references/swarm-coordination.md</h2><pre># Swarm coordination — removed in Atlas v1
+
+`megabrain.coordinate_mission_swarm` is not a server tool. Atlas does not schedule agents, budgets, or `agent_id`.
+
+Concurrency is exclusive leases: two `atlas.claim_task` calls, one winner. Failed or expired leases re-queue the task.
+
+If a harness runs more than one LLM, they share the same USER API key. That is same-account parallelism, not a swarm.
+
+INSUFFICIENT_EVIDENCE and NOT_EXECUTED were kernel statuses of the removed swarm tool. On Atlas v1, missing verification is `VERIFICATION_REQUIRED`; a pending Docker run is not SUCCESS.
+</pre></section><section><h2>megabrain-pipeline/SKILL.md</h2><pre>---
+name: megabrain-pipeline
+version: &quot;4.0.0&quot;
+description: &quot;Build acyclic Atlas DAGs, claim unblocked tasks, and inspect mission waves locally.&quot;
+allowed-tools: [&quot;mcp__atlas__*&quot;, &quot;terminal&quot;]
+---
+
+# Atlas Pipeline
+
+Decompose work into an acyclic task DAG, persist it with `atlas.create_mission`, and claim ready tasks. Waves are derived from dependencies; Atlas does not expose `get_parallel_waves` or `execute_pipeline`.
+
+## When to Use
+
+- More than one task, with explicit `depends_on_task_id`.
+- Need `atlas.get_mission` to see which tasks are still `PENDING`.
+- Local acyclicity check before create (`scripts/dag_validator.js`).
+
+## NOT for
+
+- End-to-end verify/submit (`megabrain-orchestrate`).
+- Review verdicts (`megabrain-review`).
+- Headless visual TDD (`megabrain-ui`).
+- Calling `megabrain.decompose`, `execute_pipeline`, `heal_dependency_graph`, `synthesize_subtask`.
+
+## Workflow
+
+Execute via `megabrain call` with a qualified `atlas.*` name and a JSON object. The parser rejects non-objects.
+
+```bash
+# 1. Persist DAG. prompt is not an Atlas field. Sem profundidade máxima.
+megabrain call atlas.create_mission &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_dag&quot;,&quot;tasks&quot;:[{&quot;task_id&quot;:&quot;t1&quot;,&quot;title&quot;:&quot;plan&quot;},{&quot;task_id&quot;:&quot;t2&quot;}],&quot;dependencies&quot;:[{&quot;task_id&quot;:&quot;t2&quot;,&quot;depends_on_task_id&quot;:&quot;t1&quot;}]}&#x27;
+
+# 2. Inspect tasks and edges. Mock/parser não é prova live.
+megabrain call atlas.get_mission &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_dag&quot;}&#x27;
+
+# 3. Claim the next unblocked PENDING task. GREEN/exit_code: 0 only after real local tests; do not fabricate GREEN. Negatives are NOT_EXECUTED or MALFORMED_RESULT on the harness, not on Atlas. Sem índice de wave. Sem provider.
+megabrain call atlas.claim_task &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_dag&quot;}&#x27;
+
+# 4. Local wave preview (not a server tool).
+node scripts/dag_validator.js tasks.json
+
+# 5. Blocked cycle or missing edge: fail closed. Atlas rejects cyclic create_mission. There is no heal_dependency_graph; fix the DAG and create a new mission. Cura reconhecida e estado terminal. Sem execução de provider. BLOCKED tasks stay blocked until dependencies complete.
+```
+
+Local tests belong in the harness. Atlas only attests via `atlas.request_verification`. test_commands are local, not an Atlas argument.
+
+## UX &amp; Fault Tolerance Rules
+
+- **Path Isolation**: Concurrent claimed tasks must operate on mutually exclusive file paths.
+- **Fail-Closed on Cycles**: Abort immediately if cyclic dependencies or graph deadlocks occur.
+- **Bounded Healing**: Cap local retries (default: 2) before fail-closed escalation. No server auto-heal.
+
+## References
+
+- DAG decomposition rules: [references/dag-decomposition-rules.md](references/dag-decomposition-rules.md)
+- Topological wave partitioning: [references/topological-waves.md](references/topological-waves.md)
+- Auto-healing graph patterns: [references/auto-healing-patterns.md](references/auto-healing-patterns.md)
+</pre></section><section><h2>megabrain-pipeline/references/auto-healing-patterns.md</h2><pre># Auto-Healing Graph Patterns
+
+Atlas v1 does not heal a live DAG. Cyclic or blocked graphs fail closed at `atlas.create_mission`. Fix the graph locally and create a new mission.
+
+## Local diagnosis
+
+- **Blockage Diagnosis**: `atlas.get_mission` shows `PENDING` vs `RUNNING` vs completed.
+- **No re-wiring**: do not mutate an ACTIVE mission&#x27;s edges.
+- **Topological Integrity**: `scripts/dag_validator.js` before create.
+
+## Remediation
+
+When a local test gate fails:
+
+1. Capture stderr and exit codes in the harness.
+2. Claim is not a second chance to skip verification.
+3. Bounded local retries (default: 2); then fail-closed.
+4. `synthesize_subtask` / `heal_dependency_graph` / `verify_subtask` are not Atlas tools.
+
+Cura reconhecida e estado terminal. Sem executor o harness devolve NOT_EXECUTED, nunca SUCCESS falso. Sem execução de provider.
+</pre></section><section><h2>megabrain-pipeline/references/dag-decomposition-rules.md</h2><pre># DAG Decomposition Rules
+
+Governs task graphs persisted by `atlas.create_mission` (`https://mcp.atlascommand.dev/mcp`).
+
+## Core Decomposition Principles
+
+1. **Atomic Decomposition**:
+   - Every complex mission decomposes into granular, non-overlapping subtasks (`PLANNING`, `IMPLEMENTATION`, `TESTING`, `INTEGRATION`).
+   - Subtasks must produce discrete, testable deliverables with bounded file diffs.
+2. **Single Responsibility Scope**:
+   - Each subtask focuses strictly on one responsibility (e.g., single component, test suite, or schema).
+   - Context is bounded to immediate dependencies to avoid token bloat and drift.
+3. **Strict Explicit Dependencies**:
+   - `depends_on_task_id` lists exact prerequisite task IDs; implicit ordering is forbidden.
+   - Dependency graphs must be strictly acyclic; cycles trigger immediate validation failure.
+
+## Verification and Tooling
+
+Validate task graphs prior to dispatch:
+
+```bash
+megabrain call atlas.create_mission &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_dag&quot;,&quot;tasks&quot;:[{&quot;task_id&quot;:&quot;t1&quot;}]}&#x27;
+node scripts/dag_validator.js tasks.json
+```
+
+`create_mission` exige `project_id`, `mission_id` e `tasks`. `max_depth` não faz parte do contrato. Mock/parser não é prova live. `megabrain.decompose` was removed.
+</pre></section><section><h2>megabrain-pipeline/references/topological-waves.md</h2><pre># Topological Wave Partitioning
+
+Waves are a local view of an Atlas DAG. Atlas does not expose `get_parallel_waves` or `execute_pipeline`.
+
+## Partitioning Algorithm (Kahn&#x27;s In-Degree)
+
+1. **In-Degree Calculation**: Count unresolved incoming dependencies per task from `atlas.get_mission`.
+2. **Wave Extraction**: Collect all tasks where `in_degree == 0` into the current wave.
+3. **Graph Reduction**: Claim and finish the current wave; decrement dependents.
+4. **Iterative Progression**: Repeat until all nodes are resolved or fail-closed if a cycle is detected.
+
+## Parallel Execution and Path Isolation
+
+- **Independent Concurrency**: Tasks in a wave may be claimed by separate harness sessions sharing the USER key.
+- **Path Isolation**: Concurrent tasks must operate on mutually exclusive file paths.
+- **Lock Enforcement**: Exclusive path locks live in the harness, not in Atlas. `arbitrate_concurrency` is not a server tool.
+
+## Execution via CLI
+
+```bash
+megabrain call atlas.get_mission &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_dag&quot;}&#x27;
+node scripts/dag_validator.js tasks.json
+```
+
+Local tests use `test_commands` in the harness: execute the command and treat GREEN with exit_code: 0 only after real proof (não fabricar GREEN; negativos são NOT_EXECUTED ou MALFORMED_RESULT). Sem `wave_index`. Sem provider.
+</pre></section><section><h2>megabrain-review/SKILL.md</h2><pre>---
+name: megabrain-review
+version: &quot;4.0.0&quot;
+description: &quot;Submit Atlas task reviews from a separate execution; same-account, never dual-blind.&quot;
+allowed-tools: [&quot;mcp__atlas__*&quot;, &quot;terminal&quot;]
+---
+
+# Atlas Review
+
+Review is a second execution of the same USER key calling `atlas.submit_task_review`. Atlas records `same_account_review=true`. That is separate execution, not dual-blind identity.
+
+Anti-slop, voice, and readability run in this harness. They are not MCP tools.
+
+## When to Use
+
+- A mission task requires a review execution distinct from the implementation execution.
+- Verdict must be `ACCEPT`, `REJECT`, or `NEEDS_WORK` with rationale.
+- Local lint of copy before attaching it as an artifact.
+
+## NOT for
+
+- End-to-end claim/verify (`megabrain-orchestrate`).
+- DAG create (`megabrain-pipeline`).
+- Headless visual TDD (`megabrain-ui`).
+- Calling `megabrain.adjudicate_consensus`, `anti_slop_lint`, `voice_calibrate`, `readability_score`.
+
+## Workflow
+
+Execute via `megabrain call` with a JSON object. The parser rejects non-objects.
+
+```bash
+# 1. Review from a distinct execution_id. Consenso exige reviews com approved, score, verdict, notes e rationale locally; Atlas stores one verdict.
+megabrain call atlas.submit_task_review &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;,&quot;task_id&quot;:&quot;t_impl&quot;,&quot;execution_id&quot;:&quot;ex_1&quot;,&quot;review_execution_id&quot;:&quot;ex_2&quot;,&quot;verdict&quot;:&quot;ACCEPT&quot;,&quot;rationale&quot;:&quot;gates green&quot;}&#x27;
+
+# 2. Anti-slop com JSON objeto, não flags — local harness, then upload bytes if needed.
+# 3. Voice calibrate com JSON objeto — local.
+# 4. Readability com JSON objeto — local.
+```
+
+Consenso determinístico não é autorização nem teste GREEN. Sem árbitro LLM server-side. Jev é só advisory (`advisory_only=true`). Campo `approved` is a local review field, not an Atlas argument.
+
+## Quality Rules &amp; Consensus Criteria
+
+- **Consensus Threshold**: Score ponderado é métrica; não autoriza merge, commit ou teste GREEN.
+- **No Server Arbiter**: Sem terceiro árbitro LLM automático. Jev é só advisory.
+- **Zero AI Slop**: Strip sycophantic openers, hyperbolic adjectives, and passive hedges. Enforce direct assertions.
+- **Review Invariants**: Consenso exige reviews com reviewer, approved, score, verdict, notes e rationale; sem árbitro LLM server-side.
+
+## References
+
+- Dual-blind consensus adjudication: [references/dual-blind-adjudication.md](references/dual-blind-adjudication.md)
+- Anti-slop and humanization patterns: [references/anti-slop-patterns.md](references/anti-slop-patterns.md)
+- Voice calibration and cadence engineering: [references/voice-calibration.md](references/voice-calibration.md)
+</pre></section><section><h2>megabrain-review/references/anti-slop-patterns.md</h2><pre># Anti-Slop &amp; Humanization Patterns
+
+Enforces direct, humanized communication and removes synthetic AI tropes via `@cli_atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+
+## Automated Linting Protocol (local anti-slop lint)
+
+Scans text against humanizer heuristics to eliminate conversational fluff, clichés, and superficial verbosity:
+- **Preamble Pruning**: Strips sycophantic openers (&quot;Certamente!&quot;, &quot;Com certeza!&quot;, &quot;Como um modelo de IA...&quot;).
+- **Cliché Expulsion**: Detects and bans tired metaphors (&quot;mergulhar em&quot;, &quot;testamento a&quot;, &quot;divisor de águas&quot;, &quot;crucial&quot;).
+- **Flourish Elimination**: Replaces decorative filler with concise, factual, and actionable statements.
+- **Redundancy Compression**: Collapses repetitive restatements into single declarative truths.
+
+## Enforcement Rules &amp; Replacements
+
+| Pattern Category | AI Slop Cliché | Humanized Canonical Form |
+| :--- | :--- | :--- |
+| **Empty Openers** | *&quot;Certamente! Ficarei feliz em ajudar com...&quot;* | *(Direct action or code immediately)* |
+| **Inflated Adjectives**| *&quot;É crucial lembrar que a arquitetura robusta...&quot;* | *&quot;A arquitetura exige...&quot;* |
+| **Trope Metaphors** | *&quot;Vamos mergulhar profundamente nesta análise...&quot;* | *&quot;Analisando os seguintes pontos:&quot;* |
+| **Hedging Fillers** | *&quot;É importante notar que isto serve como um testamento...&quot;* | *&quot;Isto demonstra que...&quot;* |
+
+Lint is local in the harness. There is no MCP tool for it.
+
+```text
+{&quot;text&quot;:&quot;Direct assertion without filler.&quot;}
+```
+
+JSON objeto, não flags `--text`.
+</pre></section><section><h2>megabrain-review/references/dual-blind-adjudication.md</h2><pre># Dual-Blind Review Adjudication
+
+Atlas v1 does not adjudicate reviewers. `atlas.submit_task_review` stores one verdict from a distinct `review_execution_id`. Same API key ⇒ `same_account_review=true`. Documentation must not call this independent or dual-blind.
+
+Local harnesses may still collect multiple reviews:
+
+```json
+{&quot;task_id&quot;:&quot;t1&quot;,&quot;reviews&quot;:[{&quot;reviewer&quot;:&quot;rev_a&quot;,&quot;approved&quot;:true,&quot;score&quot;:0.9,&quot;verdict&quot;:&quot;ACCEPT&quot;,&quot;notes&quot;:&quot;ok&quot;,&quot;rationale&quot;:&quot;gates green&quot;}]}
+```
+
+Campo `approved` é obrigatório no envelope local. Consenso determinístico não é autorização nem teste GREEN. Sem árbitro LLM server-side. Jev é só advisory. nenhum árbitro LLM server-side é despachado automaticamente; a divergência permanece evidência para o orquestrador.
+
+```bash
+megabrain call atlas.submit_task_review &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;,&quot;task_id&quot;:&quot;t_impl&quot;,&quot;execution_id&quot;:&quot;ex_1&quot;,&quot;review_execution_id&quot;:&quot;ex_2&quot;,&quot;verdict&quot;:&quot;ACCEPT&quot;,&quot;rationale&quot;:&quot;gates green&quot;}&#x27;
+```
+</pre></section><section><h2>megabrain-review/references/voice-calibration.md</h2><pre># Voice Calibration &amp; Cadence Engineering
+
+Aligns generated documentation and code artifacts with canonical author style via `@cli_atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+
+## Stylistic Alignment (local voice calibrate)
+
+Compares generated drafts against gold-standard author samples to preserve authentic developer voice:
+- **Tone Matching**: Ensures declarative, confident, and direct delivery without passive softening.
+- **Vocabulary Calibration**: Prioritizes concise domain terminology over generic marketing jargon.
+- **Cadence Scoring**: Measures semantic similarity and density against canonical author baselines.
+
+## Rhythm &amp; Readability Metrics (local readability score)
+
+Monitors syntactic and structural flow to avoid robotic monotony:
+- **Sentence Length Variance ($\sigma^2$)**: Alternates short punchy assertions with explanatory compound clauses.
+- **Structural Rhythm**: Balances prose paragraphs with structured markdown tables and bulleted constraints.
+- **Assertive Vocabulary Index**: Penalizes weak hedges (&quot;talvez&quot;, &quot;possivelmente&quot;, &quot;parece que&quot;) in favor of definitive statements.
+
+Voice and readability are local in the harness. There is no MCP tool for them.
+
+```text
+{&quot;text&quot;:&quot;Output text&quot;,&quot;author_sample&quot;:&quot;Canonical text sample&quot;}
+{&quot;text&quot;:&quot;Technical document content&quot;}
+```
+
+JSON objeto, não flags `--text`. Mock/parser não é prova live.
+</pre></section><section><h2>megabrain-surface/SKILL.md</h2><pre>---
+name: megabrain-surface
+version: 4.0.0
+description: Atlas v1 MCP surface: 27 atlas.* tools, USER/ADMIN identity, transports, errors.
+---
+
+# Superfície Atlas v1
+
+Servidor: 27 tools `atlas.*`. Sem alias `megabrain.*`. Sem roles Atlas. Sem painel. Sem CLI de missão.
+
+No Hermes o bloco MCP chama-se `atlas`. Tools aparecem como `mcp__atlas__atlas_&lt;action&gt;` (ponto vira underscore). Chame essa tool. O prefixo legado `mcp__megabrain__*` e as 36 tools antigas não existem neste servidor.
+
+Handshake e keepalive `POST /mcp` (`Terminating session: None`) são transporte, não trabalho.
+
+## Identidade canônica
+
+Atlas v1 não registra role. Identidade vem da API key:
+
+- `atlas_user_&lt;hex&gt;` — conta `USER`: projetos, missões, leases, uploads, verificação, evidência.
+- `atlas_admin_&lt;hex&gt;` — conta `ADMIN`: criar conta e emitir/rotar/listar/revogar keys. Admin não lê conteúdo de projeto.
+
+Não envie `account_id`, owner, admin, role ou status como autoridade no payload. A key autenticada é a autoridade.
+
+Papéis de harness (`implementer`, `reviewer`) ficam no ambiente da LLM. Não são tools nem parâmetros MCP.
+
+## Catálogo — 27/27
+
+### Serviço e contas
+
+## atlas.health
+Assinatura: `atlas.health()` -&gt; status, sqlite_version.
+Limite: liveness; sem efeito. Runtime devolve `HEALTHY`.
+```bash
+megabrain call atlas.health &#x27;{}&#x27;
+```
+
+## atlas.create_account
+Assinatura: `atlas.create_account(name, account_type=&quot;USER&quot;)`.
+Limite: admin.
+```bash
+megabrain call atlas.create_account &#x27;{&quot;name&quot;:&quot;user-alpha&quot;,&quot;account_type&quot;:&quot;USER&quot;}&#x27;
+```
+
+## atlas.issue_api_key
+Assinatura: `atlas.issue_api_key(account_id)` -&gt; key, raw_key.
+Limite: admin; raw_key uma vez; recusa segunda key ativa.
+```bash
+megabrain call atlas.issue_api_key &#x27;{&quot;account_id&quot;:&quot;acc_local_1&quot;}&#x27;
+```
+
+## atlas.rotate_api_key
+Assinatura: `atlas.rotate_api_key(account_id)`.
+Limite: admin; troca atômica.
+```bash
+megabrain call atlas.rotate_api_key &#x27;{&quot;account_id&quot;:&quot;acc_local_1&quot;}&#x27;
+```
+
+## atlas.list_api_keys
+Assinatura: `atlas.list_api_keys(account_id)`.
+Limite: admin; metadados, sem segredo.
+```bash
+megabrain call atlas.list_api_keys &#x27;{&quot;account_id&quot;:&quot;acc_local_1&quot;}&#x27;
+```
+
+## atlas.revoke_api_key
+Assinatura: `atlas.revoke_api_key(key_id)`.
+Limite: admin.
+```bash
+megabrain call atlas.revoke_api_key &#x27;{&quot;key_id&quot;:&quot;key_local_1&quot;}&#x27;
+```
+
+### Projetos e manifests
+
+## atlas.create_project
+Assinatura: `atlas.create_project(name)` -&gt; project_id.
+```bash
+megabrain call atlas.create_project &#x27;{&quot;name&quot;:&quot;Alpha&quot;}&#x27;
+```
+
+## atlas.list_projects
+Assinatura: `atlas.list_projects()`.
+```bash
+megabrain call atlas.list_projects &#x27;{}&#x27;
+```
+
+## atlas.get_project
+Assinatura: `atlas.get_project(project_id)`.
+```bash
+megabrain call atlas.get_project &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;}&#x27;
+```
+
+## atlas.archive_project
+Assinatura: `atlas.archive_project(project_id)`.
+```bash
+megabrain call atlas.archive_project &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;}&#x27;
+```
+
+## atlas.register_check_manifest
+Assinatura: `atlas.register_check_manifest(project_id, manifest_id, manifest_payload)`.
+Limite: adapters tipados; sem comando livre.
+```bash
+megabrain call atlas.register_check_manifest &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;manifest_id&quot;:&quot;man_py&quot;,&quot;manifest_payload&quot;:{&quot;checks&quot;:[{&quot;name&quot;:&quot;unit&quot;,&quot;adapter&quot;:&quot;python.pytest&quot;,&quot;args&quot;:[&quot;-q&quot;]}]}}&#x27;
+```
+
+## atlas.list_check_manifests
+Assinatura: `atlas.list_check_manifests(project_id)`.
+```bash
+megabrain call atlas.list_check_manifests &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;}&#x27;
+```
+
+### Missões e tarefas
+
+## atlas.create_mission
+Assinatura: `atlas.create_mission(project_id, mission_id, tasks, dependencies=None)`.
+Limite: DAG acíclico; cada task tem `task_id`; `manifest_id` opcional.
+```bash
+megabrain call atlas.create_mission &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;,&quot;tasks&quot;:[{&quot;task_id&quot;:&quot;t_impl&quot;,&quot;manifest_id&quot;:&quot;man_py&quot;},{&quot;task_id&quot;:&quot;t_review&quot;}],&quot;dependencies&quot;:[{&quot;task_id&quot;:&quot;t_review&quot;,&quot;depends_on_task_id&quot;:&quot;t_impl&quot;}]}&#x27;
+```
+
+## atlas.list_missions
+Assinatura: `atlas.list_missions(project_id)`.
+```bash
+megabrain call atlas.list_missions &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;}&#x27;
+```
+
+## atlas.get_mission
+Assinatura: `atlas.get_mission(project_id, mission_id)`.
+```bash
+megabrain call atlas.get_mission &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;}&#x27;
+```
+
+## atlas.archive_mission
+Assinatura: `atlas.archive_mission(project_id, mission_id)`.
+```bash
+megabrain call atlas.archive_mission &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;}&#x27;
+```
+
+## atlas.claim_task
+Assinatura: `atlas.claim_task(project_id, mission_id=None, timeout_seconds=300)` -&gt; execution_id, lease_id, fence_token, nonce.
+```bash
+megabrain call atlas.claim_task &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;,&quot;timeout_seconds&quot;:300}&#x27;
+```
+
+## atlas.renew_task_lease
+Assinatura: `atlas.renew_task_lease(project_id, lease_id, fence_token, nonce, extend_seconds=300)`.
+```bash
+megabrain call atlas.renew_task_lease &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;lease_id&quot;:&quot;lease_1&quot;,&quot;fence_token&quot;:1,&quot;nonce&quot;:&quot;n1&quot;,&quot;extend_seconds&quot;:300}&#x27;
+```
+
+## atlas.submit_task_result
+Assinatura: `atlas.submit_task_result(project_id, lease_id, fence_token, nonce, result_status=&quot;COMPLETED&quot;, payload=None)`.
+Limite: se a política exige verify, submeter antes de `CHECK_EXECUTION_VERIFIED` devolve `VERIFICATION_REQUIRED` e preserva o lease.
+```bash
+megabrain call atlas.submit_task_result &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;lease_id&quot;:&quot;lease_1&quot;,&quot;fence_token&quot;:1,&quot;nonce&quot;:&quot;n1&quot;,&quot;result_status&quot;:&quot;COMPLETED&quot;}&#x27;
+```
+
+## atlas.submit_task_review
+Assinatura: `atlas.submit_task_review(project_id, mission_id, task_id, execution_id, review_execution_id, verdict, rationale)`.
+Limite: `review_execution_id` distinto. Mesma key: `same_account_review=true`. Não é dual-blind.
+```bash
+megabrain call atlas.submit_task_review &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;,&quot;task_id&quot;:&quot;t_impl&quot;,&quot;execution_id&quot;:&quot;ex_1&quot;,&quot;review_execution_id&quot;:&quot;ex_2&quot;,&quot;verdict&quot;:&quot;ACCEPT&quot;,&quot;rationale&quot;:&quot;checks verified&quot;}&#x27;
+```
+
+### Artifacts, verificação e evidência
+
+## atlas.begin_upload
+Assinatura: `atlas.begin_upload(project_id, mission_id, task_id, execution_id, lease_id, fence_token, nonce)`.
+```bash
+megabrain call atlas.begin_upload &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;,&quot;task_id&quot;:&quot;t_impl&quot;,&quot;execution_id&quot;:&quot;ex_1&quot;,&quot;lease_id&quot;:&quot;lease_1&quot;,&quot;fence_token&quot;:1,&quot;nonce&quot;:&quot;n1&quot;}&#x27;
+```
+
+## atlas.complete_upload
+Assinatura: `atlas.complete_upload(project_id, session_id, data_text|data_base64|data_hex)`.
+Limite: Atlas calcula hash. Sem URL pública.
+```bash
+megabrain call atlas.complete_upload &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;session_id&quot;:&quot;up_1&quot;,&quot;data_text&quot;:&quot;ok&quot;}&#x27;
+```
+
+## atlas.request_verification
+Assinatura: `atlas.request_verification(project_id, mission_id, task_id, execution_id, snapshot_b64, image_digest=None)`.
+Limite: cria run `PENDING`. O cliente não grava o resultado. Worker Docker assina.
+```bash
+megabrain call atlas.request_verification &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;,&quot;task_id&quot;:&quot;t_impl&quot;,&quot;execution_id&quot;:&quot;ex_1&quot;,&quot;snapshot_b64&quot;:&quot;UEsDBBQAAAAAAD19bF2iim3vFwAAABcAAAAIAAAAY2hlY2sucHlpbXBvcnQgc3lzCnN5cy5leGl0KDApClBLAQIUAxQAAAAAAD19bF2iim3vFwAAABcAAAAIAAAAAAAAAAAAAACAAQAAAABjaGVjay5weVBLBQYAAAAAAQABADYAAAA9AAAAAAA=&quot;}&#x27;
+```
+
+## atlas.get_verification
+Assinatura: `atlas.get_verification(project_id, run_id)`.
+Limite: `CHECK_EXECUTION_VERIFIED` só após assinatura e vínculos.
+```bash
+megabrain call atlas.get_verification &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;run_id&quot;:&quot;run_1&quot;}&#x27;
+```
+
+## atlas.verify_and_attest
+Assinatura: `atlas.verify_and_attest(project_id, files, checks, mission_id=None, task_id=None, manifest_id=None, image_digest=None, wait_timeout_seconds=...)`.
+Limite: fachada transacional — empacota, registra manifesto, cria missão, claim, upload, verifica e exporta evidência em uma chamada. Reutiliza `manifest_id`/`mission_id` quando fornecidos; falha fechada em qualquer etapa.
+```bash
+megabrain call atlas.verify_and_attest &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;files&quot;:[{&quot;path&quot;:&quot;check.py&quot;,&quot;content&quot;:&quot;print(1)&quot;}],&quot;checks&quot;:[{&quot;name&quot;:&quot;smoke&quot;,&quot;command&quot;:&quot;python check.py&quot;}]}&#x27;
+```
+
+## atlas.export_evidence
+Assinatura: `atlas.export_evidence(project_id, mission_id)` -&gt; receipts, ledger, chain_verified.
+Limite: `chain_verified: true` só com cadeia íntegra. Não confie no booleano sem os blocos.
+```bash
+megabrain call atlas.export_evidence &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;mission_id&quot;:&quot;mis_hold&quot;}&#x27;
+```
+
+## atlas.get_usage
+Assinatura: `atlas.get_usage(project_id)` -&gt; volumetrics, limits null.
+```bash
+megabrain call atlas.get_usage &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;}&#x27;
+```
+
+## Aliases underscore — 27/27
+
+Regra 1:1: `atlas.&lt;tool&gt;` ↔ `atlas_&lt;tool&gt;`. Alias não é tool nova. Sem `megabrain.*`.
+
+```bash
+megabrain call atlas_health &#x27;{}&#x27;
+```
+Equivalente a `megabrain call atlas.health &#x27;{}&#x27;`.
+
+- atlas.health -&gt; atlas_health
+- atlas.create_account -&gt; atlas_create_account
+- atlas.issue_api_key -&gt; atlas_issue_api_key
+- atlas.rotate_api_key -&gt; atlas_rotate_api_key
+- atlas.list_api_keys -&gt; atlas_list_api_keys
+- atlas.revoke_api_key -&gt; atlas_revoke_api_key
+- atlas.create_project -&gt; atlas_create_project
+- atlas.list_projects -&gt; atlas_list_projects
+- atlas.get_project -&gt; atlas_get_project
+- atlas.archive_project -&gt; atlas_archive_project
+- atlas.register_check_manifest -&gt; atlas_register_check_manifest
+- atlas.list_check_manifests -&gt; atlas_list_check_manifests
+- atlas.create_mission -&gt; atlas_create_mission
+- atlas.list_missions -&gt; atlas_list_missions
+- atlas.get_mission -&gt; atlas_get_mission
+- atlas.archive_mission -&gt; atlas_archive_mission
+- atlas.claim_task -&gt; atlas_claim_task
+- atlas.renew_task_lease -&gt; atlas_renew_task_lease
+- atlas.submit_task_result -&gt; atlas_submit_task_result
+- atlas.submit_task_review -&gt; atlas_submit_task_review
+- atlas.begin_upload -&gt; atlas_begin_upload
+- atlas.complete_upload -&gt; atlas_complete_upload
+- atlas.request_verification -&gt; atlas_request_verification
+- atlas.get_verification -&gt; atlas_get_verification
+- atlas.verify_and_attest -&gt; atlas_verify_and_attest
+- atlas.export_evidence -&gt; atlas_export_evidence
+- atlas.get_usage -&gt; atlas_get_usage
+
+Gramática: aceita `atlas.health` e `atlas_health`; rejeita `atlas.`, `atlas..health`, `megabrain.health` e string vazia. Argumentos: JSON objeto.
+
+No Hermes, o nome de chamada é `mcp__atlas__atlas_health` (e o análogo para cada tool). Não invente `mcp__megabrain__*`.
+
+## Resources — parte 4
+
+O servidor Atlas v1 não publica resources MCP. Estado sai das tools `atlas.get_*` / `atlas.export_evidence`.
+
+`megabrain call` NAO le resources; resources exigem `POST /mcp` com Bearer — e neste servidor a lista é vazia.
+
+## Prompts — parte 5
+
+O servidor Atlas v1 não publica prompts MCP (`sovereign-mission` e `consensus-adjudication` foram removidos).
+
+`megabrain call` NAO executa prompts; prompts exigem `POST /mcp` com Bearer — e neste servidor a lista é vazia.
+
+## Identidade (substitui Roles)
+
+Nota kernel-only: zero providers/models; a key não executa inferência.
+
+Contas:
+
+- `USER` — opera o fluxo MCP do próprio projeto.
+- `ADMIN` — ciclo de vida de contas e keys.
+
+Não há catálogo `mission_compiler` / `cartographer` / `implementer` / `reviewer` / `failure_diagnostician` / `creative_copywriter` no servidor. Esses nomes, se existirem, são do harness da LLM.
+
+## Transportes e autenticação
+
+### 1. Streamable HTTP
+- Entrypoint: `POST /mcp`
+- Endpoints: `http://127.0.0.1:20130/mcp` (local) e `https://mcp.atlascommand.dev/mcp` (deploy).
+- Teste A/B: porta efêmera, nunca 20130.
+- Headers obrigatórios:
+  - `Content-Type: application/json`
+  - `Accept: application/json, text/event-stream`
+  - `Authorization: Bearer &lt;token&gt;`
+  - `MCP-Protocol-Version: 2026-07-28`
+  - `Mcp-Method: &lt;method&gt;`
+  - `Mcp-Name: &lt;name&gt;` (em `tools/call`)
+- Objeto `params._meta` obrigatório:
+  - `io.modelcontextprotocol/protocolVersion`: `&quot;2026-07-28&quot;`
+  - `io.modelcontextprotocol/clientCapabilities`: objeto de capacidades do cliente
+  - `io.modelcontextprotocol/clientInfo`: objeto de identificação do cliente
+
+### 2. stdio async
+- Entrypoint: servidor Atlas stdio no harness local.
+
+### 3. JSON-RPC stdio
+- Entrypoint: newline-delimited JSON-RPC 2.0, sem `call_tool` in-process.
+
+### Regras de Autenticação e Segurança
+- `Authorization: Bearer &lt;token&gt;` obrigatório para `/mcp`.
+- Tokens em query string (`?token=`, `?key=`, `?bearer=`) são rejeitados com HTTP 401.
+- Cookies de sessão web (`mb_user_session`, `mb_admin_session`) não autenticam `/mcp`.
+
+### Exemplo curl / JSON-RPC `tools/list`
+```bash
+curl -X POST https://mcp.atlascommand.dev/mcp \
+  -H &quot;Content-Type: application/json&quot; \
+  -H &quot;Accept: application/json, text/event-stream&quot; \
+  -H &quot;Authorization: Bearer ${MEGABRAIN_TOKEN}&quot; \
+  -H &quot;MCP-Protocol-Version: 2026-07-28&quot; \
+  -H &quot;Mcp-Method: tools/list&quot; \
+  -d &#x27;{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:1,&quot;method&quot;:&quot;tools/list&quot;,&quot;params&quot;:{&quot;_meta&quot;:{&quot;io.modelcontextprotocol/protocolVersion&quot;:&quot;2026-07-28&quot;,&quot;io.modelcontextprotocol/clientCapabilities&quot;:{},&quot;io.modelcontextprotocol/clientInfo&quot;:{&quot;name&quot;:&quot;atlas-cli&quot;,&quot;version&quot;:&quot;4.0.0&quot;}}}}&#x27;
+```
+
+## Observabilidade
+
+### Endpoint /metrics
+- `GET /metrics`: ASGI, sem auth, formato Prometheus `text/plain; version=0.0.4`.
+- Métricas expostas (nomes históricos no processo; a tool de produto é `atlas.get_usage`):
+  - `megabrain_tool_calls_total{tool,arm,outcome,error_code}`
+  - `megabrain_arm_calls_total{arm}`
+  - `megabrain_errors_total`
+  - `megabrain_tool_errors_total{tool}`
+  - `megabrain_tool_duration_seconds_bucket`
+  - `megabrain_tool_duration_seconds_sum`
+  - `megabrain_tool_duration_seconds_count`
+  - `megabrain_tool_duration_seconds_total`
+
+### Notificações de progresso
+```json
+{
+  &quot;jsonrpc&quot;: &quot;2.0&quot;,
+  &quot;method&quot;: &quot;notifications/progress&quot;,
+  &quot;params&quot;: {
+    &quot;progressToken&quot;: &quot;tok-1&quot;,
+    &quot;progress&quot;: 50,
+    &quot;total&quot;: 100,
+    &quot;message&quot;: &quot;executing task&quot;
+  }
+}
+```
+Ordem obrigatória: progresso antes do resultado.
+
+Volumetria de produto:
+```bash
+megabrain call atlas.get_usage &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;}&#x27;
+```
+Retorno: `volumetrics` (`artifact_bytes`, `artifact_count`, `verification_count`, `missions_count`, `tasks_count`) e `limits` (`max_artifact_bytes`, `max_verifications`, `max_concurrent_tasks` = null).
+Contadores vivos vs snapshot; sem SLA sem medição.
+Campos de telemetria histórica (`total_calls`, `total_errors`, `tool_distribution`, `uptime_seconds`) não são a tool v1.
+
+## Contrato de erro
+
+Resultados operacionais admitem: `status:&quot;completed&quot;` (sucesso), `status:&quot;error&quot;`, `isError:true`, `structuredContent` com `status/error_code`, e content text JSON.
+
+```json
+{&quot;status&quot;:&quot;completed&quot;}
+```
+
+```json
+{&quot;status&quot;:&quot;error&quot;,&quot;error_code&quot;:&quot;INVALID_ENDPOINT&quot;}
+```
+
+O campo `error_code` bounded segue a regex `^[A-Z][A-Z0-9_]{0,63}$`. Qualquer valor ausente ou malformado cai em `TOOL_ERROR` no outcome SDK.
+
+Códigos documentados:
+
+- `INVALID_ARGUMENT`
+- `INVALID_ENDPOINT`
+- `NO_EXECUTABLE_ROUTE`
+- `FALLBACK_NOT_SUPPORTED`
+- `INSUFFICIENT_EVIDENCE`
+- `NOT_EXECUTED`
+- `NOT_DISPATCHED`
+- `UNAUTHORIZED_RELEASE`
+- `MISSION_NOT_FOUND`
+- `EXECUTION_FAILURE`
+- `DEPENDENCY_BLOCKED`
+- `LOCK_ACQUISITION_FAILED`
+- `TIMEOUT_EXCEEDED`
+- `VERIFICATION_REQUIRED`
+- `UNEXPECTED_ARGUMENT`
+
+A regra `businessFail` (CLI) define exit 1 para `isError`, `status:error` top-level, `structuredContent.status:error`, `structuredContent.error_code` não vazio, ou content text JSON com `status:error`/`error_code` não vazio; exit 0 em texto não-JSON/saudável.
+</pre></section><section><h2>megabrain-ui/SKILL.md</h2><pre>---
+name: megabrain-ui
+version: &quot;4.0.0&quot;
+description: &quot;Run visual TDD and WCAG checks in the harness; upload screenshots to Atlas as artifacts.&quot;
+allowed-tools: [&quot;mcp__atlas__*&quot;, &quot;terminal&quot;]
+---
+
+# Atlas UI
+
+Visual TDD, CSS, DOM, and WCAG run in this harness. Atlas does not render pages. Upload PNG/HTML bytes after the local gate.
+
+## When to Use
+
+- Contrast, target size, or DOM hierarchy must pass before submit.
+- A screenshot is an artifact of a leased task.
+- Offline `scripts/wcag_check.js`.
+
+## NOT for
+
+- End-to-end claim/verify (`megabrain-orchestrate`).
+- DAG create (`megabrain-pipeline`).
+- Cryptographic evidence (`megabrain-audit`).
+- Multi-reviewer consensus (`megabrain-review`).
+- Calling `megabrain.playwright_capture`, `dom_audit`, `css_validator`, `design_tokens`, `summarize_visual_tdd`.
+
+## Workflow
+
+Execute via `megabrain call` with a JSON object. The parser rejects non-objects.
+
+```bash
+# 1. Captura headless with a local fixture and PNG. Sem URL remota/SSRF.
+# O retorno traz screenshot em base64 PNG; decodifique e valide os magic bytes `89 50 4E 47` antes de usar; URL remota/SSRF é proibida.
+# Playwright, if present, is local. Then upload:
+megabrain call atlas.complete_upload &#x27;{&quot;project_id&quot;:&quot;proj_alpha&quot;,&quot;session_id&quot;:&quot;up_1&quot;,&quot;data_base64&quot;:&quot;iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==&quot;}&#x27;
+
+# 2. Visual TDD usa html_content real, não path html/css — local harness.
+# 3. DOM audit com html_content — local.
+# 4. CSS validator com css_content. design_tokens usa action + css_content, não validate nem path de CSS — local.
+# 5. wcag_check.js local aceita JSON/flags. Não é CSS headless. JSON inválido falha fechado.
+node scripts/wcag_check.js --fg=&quot;#ffffff&quot; --bg=&quot;#111827&quot; --width=44 --height=44
+```
+
+Playwright capture, if you run it locally, uses a loopback URL such as `http://127.0.0.1:8000/fixture.html` with viewport width/height. Do not call a remote URL.
+
+## Visual Gates &amp; WCAG Compliance
+
+- **Visual TDD Gate**: Require zero violations (`violations_count == 0`, `status == &quot;pass&quot;`) before green verification.
+- **Contrast &amp; Sizing Standards**: Enforce WCAG 2.1 AA contrast (&gt;= 4.5:1 text, &gt;= 3.0:1 large) and &gt;= 44x44px targets.
+- **Token Invariance**: Strictly forbid undeclared raw hex/rgb color literals outside canonical root design tokens.
+- **Capture Invariants**: O retorno traz screenshot em base64 PNG; decodifique e valide os magic bytes `89 50 4E 47` antes de usar; URL remota/SSRF é proibida.
+
+## References
+
+- Visual TDD methodology: [references/visual-tdd-methodology.md](references/visual-tdd-methodology.md)
+- WCAG target sizes &amp; accessibility: [references/wcag-target-sizes.md](references/wcag-target-sizes.md)
+- Design tokens specification: [references/design-tokens-spec.md](references/design-tokens-spec.md)
+</pre></section><section><h2>megabrain-ui/references/design-tokens-spec.md</h2><pre># Design Tokens Specification &amp; CSS Validation
+
+Governs semantic design token architecture and CSS conformance validation via `@cli_atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+
+## Canonical Token Architecture (local token lint)
+
+Centralizes interface variables into semantic, theme-agnostic tokens:
+- **Palette**: Surface (`--bg`, `--surface`, `--surface-2`), text (`--text`, `--text-muted`), accent (`--primary`, `--accent`), status (`--danger`, `--success`).
+- **Typography**: Fluid scale scales (`--font-sans`, `--font-mono`, `--text-sm`, `--text-base`, `--text-lg`, `--line-height-normal`).
+- **Spacing &amp; Elevation**: Consistent intervals (`--space-1` through `--space-8`), radii (`--radius-sm`, `--radius-md`), shadows (`--shadow-sm`, `--shadow-lg`).
+- **Strict Prohibition**: Hardcoded hex/rgb values outside root token declarations are strictly forbidden.
+
+## CSS Conformance &amp; Linting (local CSS lint)
+
+- **Syntax &amp; Nesting Integrity**: Verifies balanced braces, valid media queries, and correct pseudo-selector syntax.
+- **Token Drift Auditing**: Mechanically scans CSS stylesheets for undeclared color literals and broken CSS variable references.
+- **Fail-Closed Validation**: Rejects stylesheets containing unclosed blocks or unmapped design tokens.
+
+```bash
+# local css_content; then atlas.complete_upload &#x27;{&quot;action&quot;:&quot;validate&quot;,&quot;css_content&quot;:&quot;:root { --primary: #111827; }&quot;}&#x27;
+# local css_content &#x27;{&quot;css_content&quot;:&quot;.btn { color: var(--primary); }&quot;}&#x27;
+```
+
+`design_tokens` usa `action` e `css_content`. Flags `--validate` e path de CSS não são o contrato.
+</pre></section><section><h2>megabrain-ui/references/visual-tdd-methodology.md</h2><pre># Visual TDD Methodology Specification
+
+Governs headless visual test-driven development and layout verification in the local harness; Atlas only stores uploaded bytes (`https://mcp.atlascommand.dev/mcp`).
+
+## Headless Visual TDD Lifecycle
+
+Enforces deterministic RED-GREEN cycles before and during UI implementation:
+- **RED Gate**: Author visual assertions against target DOM nodes, layout geometries, and accessibility tree before HTML/CSS changes.
+- **Visual Capture (local Playwright)**: Renders DOM in headless browser, producing pixel-accurate snapshots, bounding boxes, and computed styles.
+- **Deterministic Assertion (local visual assertions)**: Mechanically validates 100% pass criteria across contrast, typography, spacing, and DOM hierarchy.
+- **GREEN Verification**: Code passes only when violations reach zero (`violations_count == 0`, `status == &quot;pass&quot;`).
+
+## Structural &amp; Layout Assertions
+
+- **DOM Hierarchy**: Validates heading sequences (`h1` -&gt; `h2` -&gt; `h3`) and accessible names (`aria-label`, visible text).
+- **Inline Style Isolation**: Forbids uncoordinated inline colors (`style=&quot;color:...&quot;`) to avoid background fallback false-positives.
+- **Layout Invariance**: Enforces responsive container boundaries and viewport scaling determinism.
+
+```bash
+# local playwright; then atlas.complete_upload &#x27;{&quot;url&quot;:&quot;http://127.0.0.1:8000/fixture.html&quot;,&quot;viewport&quot;:{&quot;width&quot;:1280,&quot;height&quot;:800}}&#x27;
+# local html_content assertions &#x27;{&quot;html_content&quot;:&quot;&lt;main&gt;&lt;h1&gt;Ok&lt;/h1&gt;&lt;/main&gt;&quot;}&#x27;
+```
+
+Captura usa URL local válida e PNG; summarize_visual_tdd usa html_content. Sem URL remota. Sem SSRF. html/css path não é o contrato.
+</pre></section><section><h2>megabrain-ui/references/wcag-target-sizes.md</h2><pre># WCAG Target Sizes &amp; Accessibility Specification
+
+Governs touch target sizing and color contrast verification for WCAG 2.1 AA/AAA compliance via `@cli_atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+
+## Target Size Compliance (WCAG 2.1 SC 2.5.5 &amp; SC 2.5.8)
+
+Ensures interactive elements are easily operable across touch and pointer devices:
+- **Minimum Target Size**: All interactive elements (`&lt;button&gt;`, `&lt;a&gt;`, `&lt;input&gt;`, touch controls) require minimum $44 \times 44\text{px}$ footprint.
+- **Padding Compensation**: Sub-44px elements must expand interactive hit-areas using transparent borders or tap padding.
+- **Spacing Invariance**: Adjacent interactive targets must maintain at least $8\text{px}$ separation to eliminate accidental activation.
+
+## Contrast &amp; Focus Rings
+
+- **Normal Text Contrast (SC 1.4.3)**: Relative luminance ratio $\ge 4.5:1$ against resolved background for text under 18pt (or 14pt bold).
+- **Large Text Contrast**: Ratio $\ge 3.0:1$ for text $\ge 18\text{pt}$ (or $\ge 14\text{pt}$ bold) and graphical UI components.
+- **Visible Focus Rings (SC 2.4.7)**: Unbroken focus indicators (`outline: 2px solid var(--focus-ring)`) with $\ge 3.0:1$ contrast against adjacent pixels.
+
+```bash
+node scripts/wcag_check.js --fg=&quot;#ffffff&quot; --bg=&quot;#111827&quot; --width=44 --height=44
+```
+
+WCAG local aceita JSON/flags. Não é auditoria CSS headless. JSON inválido falha fechado.
+</pre></section><section><h2>package.json</h2><pre>{
+  &quot;name&quot;: &quot;@cli_atlas/cli&quot;,
+  &quot;version&quot;: &quot;4.0.0&quot;,
+  &quot;description&quot;: &quot;Atlas v1 companion: seven skills and a minimal CLI for 26 atlas.* MCP tools&quot;,
+  &quot;type&quot;: &quot;module&quot;,
+  &quot;bin&quot;: {
+    &quot;megabrain&quot;: &quot;bin/megabrain.js&quot;
+  },
+  &quot;engines&quot;: {
+    &quot;node&quot;: &quot;&gt;=18.0.0&quot;
+  },
+  &quot;scripts&quot;: {
+    &quot;test&quot;: &quot;node --test&quot;,
+    &quot;lint&quot;: &quot;node --check bin/megabrain.js&quot;,
+    &quot;release:pack&quot;: &quot;node scripts/package_release.js&quot;
+  },
+  &quot;keywords&quot;: [
+    &quot;megabrain&quot;,
+    &quot;mcp&quot;,
+    &quot;orchestration&quot;,
+    &quot;agents&quot;,
+    &quot;cli&quot;
+  ],
+  &quot;license&quot;: &quot;MIT&quot;,
+  &quot;dependencies&quot;: {},
+  &quot;files&quot;: [
+    &quot;bin&quot;,
+    &quot;src&quot;,
+    &quot;scripts&quot;,
+    &quot;megabrain-orchestrate&quot;,
+    &quot;megabrain-pipeline&quot;,
+    &quot;megabrain-review&quot;,
+    &quot;megabrain-audit&quot;,
+    &quot;megabrain-context&quot;,
+    &quot;megabrain-ui&quot;,
+    &quot;megabrain-surface&quot;,
+    &quot;README.md&quot;
+  ]
+}
+</pre></section><section><h2>scripts/ast_slice.js</h2><pre>#!/usr/bin/env node
+import { readFileSync } from &#x27;node:fs&#x27;;
+import { resolve } from &#x27;node:path&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import process from &#x27;node:process&#x27;;
+
+// ponytail: regex AST signature slicer; upgrade to tree-sitter for deep AST traversal
+export function sliceAst(code = &#x27;&#x27;, lang = &#x27;auto&#x27;) {
+  if (typeof code !== &#x27;string&#x27;) return { lang, declarations: [], outline: &#x27;&#x27; };
+  const detected = lang &amp;&amp; lang !== &#x27;auto&#x27;
+    ? (lang.toLowerCase().includes(&#x27;py&#x27;) ? &#x27;py&#x27; : lang.toLowerCase().includes(&#x27;ts&#x27;) ? &#x27;ts&#x27; : &#x27;js&#x27;)
+    : (/^[ \t]*(?:class\s+\w+|(?:async\s+)?def\s+\w+)/m.test(code) ? &#x27;py&#x27; : (/\b(?:interface\s+\w+|type\s+\w+\s*=|:\s*(?:string|number|boolean|any|void|unknown|Promise)\b)/.test(code) ? &#x27;ts&#x27; : &#x27;js&#x27;));
+
+  const decls = [];
+  let curr = null;
+  let ifaceDepth = 0;
+  const isPy = detected === &#x27;py&#x27;;
+  const startRe = isPy ? /^[ \t]*(?:class\s+\w+|(?:async\s+)?def\s+\w+)/ : /^[ \t]*(?:export\b|(?:async\s+)?function\*?\b|class\b|interface\b|type\b)/;
+  const pyMatch = /^([ \t]*(?:class\s+\w+(?:\([^)]*\))?|(?:async\s+)?def\s+[\w$]+\s*\([^)]*\)\s*(?:-&gt;\s*[^:]+)?)\s*:)/;
+  // ponytail: paren balance handles destructured params/types; upgrade to full tokenizer if quoted braces needed.
+  const bodyIdx = (s) =&gt; {
+    let p = 0;
+    for (let i = 0; i &lt; s.length; i++) {
+      if (s[i] === &#x27;(&#x27;) p++;
+      else if (s[i] === &#x27;)&#x27;) p = Math.max(0, p - 1);
+      else if (s[i] === &#x27;{&#x27; &amp;&amp; p &lt;= 0) return i;
+    }
+    return -1;
+  };
+  const cleanJs = (s) =&gt; (/^[ \t]*(?:export\s+)?interface\b/.test(s) || /^[ \t]*export\s*\{/.test(s) ? s.trim() : (bodyIdx(s) &gt;= 0 ? s.slice(0, bodyIdx(s)).trim() : s.replace(/\s*\{.*$/, &#x27;&#x27;).trim()));
+  const bDelta = (s) =&gt; (s.match(/\{/g) || []).length - (s.match(/\}/g) || []).length;
+
+  for (const line of code.split(&#x27;\n&#x27;)) {
+    const trimmed = line.trim();
+    if (!trimmed || (!isPy &amp;&amp; (trimmed.startsWith(&#x27;//&#x27;) || trimmed.startsWith(&#x27;/*&#x27;)))) continue;
+    if (curr) {
+      curr += &#x27; &#x27; + trimmed;
+      if (ifaceDepth &gt; 0) {
+        ifaceDepth += bDelta(trimmed);
+        if (ifaceDepth &lt;= 0) {
+          decls.push(cleanJs(curr));
+          curr = null;
+          ifaceDepth = 0;
+        }
+      } else if (isPy) {
+        const m = curr.match(pyMatch);
+        if (m) { decls.push(m[1]); curr = null; }
+      } else if (bodyIdx(curr) &gt;= 0 || curr.includes(&#x27;;&#x27;)) {
+        decls.push(cleanJs(curr));
+        curr = null;
+      }
+    } else if (startRe.test(line)) {
+      if (isPy) {
+        const m = line.match(pyMatch);
+        if (m) decls.push(m[1]);
+        else curr = line.trimEnd();
+      } else if (/^[ \t]*export\s*\{/.test(line) || /^[ \t]*type\b/.test(line)) decls.push(trimmed);
+      else if (/^[ \t]*(?:export\s+)?interface\b/.test(line) &amp;&amp; trimmed.includes(&#x27;{&#x27;) &amp;&amp; bDelta(trimmed) &gt; 0) {
+        curr = trimmed;
+        ifaceDepth = bDelta(trimmed);
+      } else if (bodyIdx(trimmed) &gt;= 0) decls.push(cleanJs(trimmed));
+      else if (line.includes(&#x27;;&#x27;) || (!line.includes(&#x27;(&#x27;) &amp;&amp; !line.includes(&#x27;function&#x27;) &amp;&amp; !line.includes(&#x27;class&#x27;))) decls.push(trimmed);
+      else curr = trimmed;
+    }
+  }
+  if (curr &amp;&amp; ifaceDepth &gt; 0) decls.push(`${cleanJs(curr)} [unterminated interface: syntax outside slicer capability]`);
+  return { lang: detected, declarations: decls, outline: decls.join(&#x27;\n&#x27;) };
+}
+
+export default sliceAst;
+
+const isMain = process.argv[1] &amp;&amp; resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  const args = process.argv.slice(2);
+  if (args.includes(&#x27;--help&#x27;) || args.includes(&#x27;-h&#x27;)) {
+    console.log(`MegaBrain AST Context Slicer\n\nUsage:\n  node scripts/ast_slice.js [file] [flags]\n  cat file | node scripts/ast_slice.js [flags]\n\nFlags:\n  --json           Output JSON object instead of raw outline\n  --lang=js|ts|py  Force language parser\n  --help, -h       Show help`);
+    process.exit(0);
+  }
+  try {
+    const isJson = args.includes(&#x27;--json&#x27;);
+    const langFlag = args.find((a) =&gt; a.startsWith(&#x27;--lang=&#x27;));
+    let lang = langFlag ? langFlag.split(&#x27;=&#x27;)[1] : &#x27;auto&#x27;;
+    const file = args.find((a) =&gt; !a.startsWith(&#x27;-&#x27;));
+    if (lang === &#x27;auto&#x27; &amp;&amp; file) {
+      if (/\.py$/i.test(file)) lang = &#x27;py&#x27;;
+      else if (/\.tsx?$/i.test(file)) lang = &#x27;ts&#x27;;
+      else if (/\.c?jsx?$/i.test(file)) lang = &#x27;js&#x27;;
+    }
+    const raw = file ? readFileSync(file, &#x27;utf8&#x27;) : readFileSync(0, &#x27;utf8&#x27;);
+    const res = sliceAst(raw, lang);
+    console.log(isJson ? JSON.stringify(res, null, 2) : res.outline);
+  } catch (err) {
+    console.error(`Error: ${err.message}`);
+    process.exit(1);
+  }
+}
+</pre></section><section><h2>scripts/dag_validator.js</h2><pre>#!/usr/bin/env node
+import { readFileSync } from &#x27;node:fs&#x27;;
+import { resolve } from &#x27;node:path&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import process from &#x27;node:process&#x27;;
+
+// ponytail: in-memory Kahn algorithm; upgrade to streaming DAG for 100k+ nodes
+export function validateDAG(tasks = []) {
+  if (!Array.isArray(tasks)) return { valid: false, cycles: [], missing_dependencies: [], waves: [] };
+
+  const seenIds = new Set();
+  for (const t of tasks) {
+    const id = t ? t.id : undefined;
+    const idOk = (typeof id === &#x27;string&#x27; &amp;&amp; id.length &gt; 0) || (typeof id === &#x27;number&#x27; &amp;&amp; Number.isFinite(id));
+    if (!idOk) return { valid: false, cycles: [], missing_dependencies: [], waves: [], error: &#x27;INVALID_ID&#x27; };
+    if (seenIds.has(id)) return { valid: false, cycles: [], missing_dependencies: [], waves: [], error: &#x27;DUPLICATE_ID&#x27; };
+    seenIds.add(id);
+  }
+
+  const inDegree = new Map();
+  const dependents = new Map();
+  const knownIds = new Set(tasks.map((t) =&gt; t.id)), missing_dependencies = [];
+
+  for (const t of tasks) {
+    inDegree.set(t.id, 0);
+    dependents.set(t.id, []);
+  }
+
+  for (const t of tasks) {
+    // Canonical dependencies has documented precedence over legacy depends_on
+    const raw = t.dependencies ?? t.depends_on;
+    const deps = Array.isArray(raw) ? raw : [];
+    for (const dep of new Set(deps)) {
+      if (!knownIds.has(dep)) { if (!missing_dependencies.includes(dep)) missing_dependencies.push(dep); }
+      else { inDegree.set(t.id, inDegree.get(t.id) + 1); dependents.get(dep).push(t.id); }
+    }
+  }
+
+  const waves = [];
+  let currentWave = [];
+  for (const t of tasks) {
+    if (inDegree.get(t.id) === 0) currentWave.push(t.id);
+  }
+
+  let processed = 0;
+  while (currentWave.length &gt; 0) {
+    waves.push(currentWave);
+    processed += currentWave.length;
+    const nextWave = [];
+    for (const id of currentWave) {
+      for (const nextId of dependents.get(id) || []) {
+        const deg = inDegree.get(nextId) - 1;
+        inDegree.set(nextId, deg);
+        if (deg === 0) nextWave.push(nextId);
+      }
+    }
+    currentWave = nextWave;
+  }
+
+  const valid = processed === tasks.length &amp;&amp; missing_dependencies.length === 0;
+  const cycles = valid ? [] : tasks.filter((t) =&gt; (inDegree.get(t.id) || 0) &gt; 0).map((t) =&gt; t.id);
+
+  return { valid, cycles, missing_dependencies, waves };
+}
+
+export default validateDAG;
+
+const isMain = process.argv[1] &amp;&amp; resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  if (process.argv.includes(&#x27;--help&#x27;) || process.argv.includes(&#x27;-h&#x27;)) {
+    console.log(`MegaBrain DAG Validator
+
+Usage:
+  node scripts/dag_validator.js [tasks.json]
+  cat tasks.json | node scripts/dag_validator.js
+
+Validates DAG acyclicity and computes topological execution waves.`);
+    process.exit(0);
+  }
+
+  try {
+    const raw = process.argv[2] ? readFileSync(process.argv[2], &#x27;utf8&#x27;) : readFileSync(0, &#x27;utf8&#x27;);
+    const result = validateDAG(JSON.parse(raw));
+    console.log(JSON.stringify(result, null, 2));
+    if (!result.valid) process.exitCode = 1;
+  } catch (err) {
+    console.error(`Error: ${err.message}`);
+    process.exit(1);
+  }
+}
+</pre></section><section><h2>scripts/merkle_verify.js</h2><pre>#!/usr/bin/env node
+import { createHash } from &#x27;node:crypto&#x27;;
+import { readFileSync } from &#x27;node:fs&#x27;;
+import { resolve } from &#x27;node:path&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import process from &#x27;node:process&#x27;;
+
+// ponytail: in-memory linear ledger verifier; upgrade to streaming Merkle tree for 10M+ blocks
+export function canonicalStringify(val) {
+  if (val === null || typeof val !== &#x27;object&#x27;) return JSON.stringify(val);
+  if (Array.isArray(val)) return `[${val.map((v) =&gt; (v === undefined ? &#x27;null&#x27; : canonicalStringify(v))).join(&#x27;,&#x27;)}]`;
+  const keys = Object.keys(val).filter((k) =&gt; val[k] !== undefined).sort();
+  return `{${keys.map((k) =&gt; `${JSON.stringify(k)}:${canonicalStringify(val[k])}`).join(&#x27;,&#x27;)}}`;
+}
+
+export function computeBlockHash(block) {
+  if (!block || typeof block !== &#x27;object&#x27;) return &#x27;&#x27;;
+  const { hash: _, ...payload } = block;
+  return createHash(&#x27;sha256&#x27;).update(canonicalStringify(payload)).digest(&#x27;hex&#x27;);
+}
+
+export function verifyLedger(blocks) {
+  if (blocks &amp;&amp; typeof blocks === &#x27;object&#x27; &amp;&amp; !Array.isArray(blocks)) {
+    const extra = Object.keys(blocks).filter((k) =&gt; k !== &#x27;blocks&#x27;);
+    if (extra.length &gt; 0) {
+      return { valid: false, blocks_verified: 0, errors: [`Unsupported envelope keys: ${extra.join(&#x27;, &#x27;)}`] };
+    }
+  }
+  const list = Array.isArray(blocks) ? blocks : (Array.isArray(blocks?.blocks) ? blocks.blocks : null);
+  if (!list) return { valid: false, blocks_verified: 0, errors: [&#x27;Ledger must be an array of blocks&#x27;] };
+  if (list.length === 0) return { valid: true, blocks_verified: 0, errors: [] };
+
+  const errors = [];
+  const isGenesisPrevValid = (prev) =&gt;
+    prev === null || prev === undefined || prev === 0 || prev === &#x27;0&#x27; || prev === &#x27;&#x27; ||
+    (typeof prev === &#x27;string&#x27; &amp;&amp; /^0{64}$/.test(prev));
+
+  for (let i = 0; i &lt; list.length; i++) {
+    const block = list[i];
+    if (!block || typeof block !== &#x27;object&#x27;) {
+      errors.push(`Block ${i}: block must be an object`);
+      continue;
+    }
+
+    const isSafeIndex = typeof block.index === &#x27;number&#x27; &amp;&amp; Number.isSafeInteger(block.index);
+    if (i === 0) {
+      if (!isSafeIndex || block.index !== 0) {
+        errors.push(!isSafeIndex ? &#x27;Block 0: index must be a safe integer&#x27; : &#x27;Block 0: genesis index must be 0&#x27;);
+      }
+      if (!isGenesisPrevValid(block.previous_hash)) {
+        errors.push(`Block 0: invalid previous_hash (${block.previous_hash})`);
+      }
+    } else {
+      if (!isSafeIndex || block.index !== i) {
+        errors.push(!isSafeIndex ? `Block ${i}: index must be a safe integer` : `Block ${i}: index sequence mismatch`);
+      }
+      const prevHash = list[i - 1]?.hash;
+      if (block.previous_hash !== prevHash) {
+        errors.push(`Block ${i}: previous_hash mismatch (expected ${prevHash}, got ${block.previous_hash})`);
+      }
+    }
+
+    const computed = computeBlockHash(block);
+    if (!block.hash || block.hash !== computed) {
+      errors.push(`Block ${i}: hash mismatch (declared ${block.hash}, computed ${computed})`);
+    }
+  }
+
+  return { valid: errors.length === 0, blocks_verified: list.length, errors };
+}
+
+export default verifyLedger;
+
+const isMain = process.argv[1] &amp;&amp; resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  if (process.argv.includes(&#x27;--help&#x27;) || process.argv.includes(&#x27;-h&#x27;)) {
+    console.log(`MegaBrain Merkle Ledger Integrity Verifier
+
+Usage:
+  node scripts/merkle_verify.js [ledger.json]
+  cat ledger.json | node scripts/merkle_verify.js
+
+Validates cryptographic hash continuity and payload integrity across blocks.`);
+    process.exit(0);
+  }
+
+  try {
+    const raw = process.argv[2] ? readFileSync(process.argv[2], &#x27;utf8&#x27;) : readFileSync(0, &#x27;utf8&#x27;);
+    const result = verifyLedger(JSON.parse(raw));
+    console.log(JSON.stringify(result, null, 2));
+    if (!result.valid) process.exitCode = 1;
+  } catch (err) {
+    console.error(`Error: ${err.message}`);
+    process.exit(1);
+  }
+}
+</pre></section><section><h2>scripts/package_release.js</h2><pre>// ponytail: local-only pack; add remote signing/attestation when CI pipeline lands
+import { execSync } from &#x27;node:child_process&#x27;;
+import { readFileSync, writeFileSync, mkdirSync } from &#x27;node:fs&#x27;;
+import { createHash } from &#x27;node:crypto&#x27;;
+import { join } from &#x27;node:path&#x27;;
+
+const pkg = JSON.parse(readFileSync(&#x27;package.json&#x27;, &#x27;utf8&#x27;));
+mkdirSync(&#x27;dist&#x27;, { recursive: true });
+const out = JSON.parse(execSync(&#x27;npm pack --json --pack-destination dist&#x27;, { encoding: &#x27;utf8&#x27; }));
+const { filename, name, version } = out[0] || {};
+if (name !== pkg.name || version !== pkg.version) {
+  throw new Error(`Release mismatch: ${name}@${version} !== ${pkg.name}@${pkg.version}`);
+}
+const tarball = join(&#x27;dist&#x27;, filename);
+const sha = createHash(&#x27;sha256&#x27;).update(readFileSync(tarball)).digest(&#x27;hex&#x27;);
+writeFileSync(join(&#x27;dist&#x27;, `${filename}.sha256`), `${sha}  ${filename}\n`);
+console.log(`Packed ${tarball} (sha256: ${sha})`);
+</pre></section><section><h2>scripts/wcag_check.js</h2><pre>#!/usr/bin/env node
+import { readFileSync } from &#x27;node:fs&#x27;;
+import { resolve } from &#x27;node:path&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import process from &#x27;node:process&#x27;;
+
+// ponytail: sRGB/WCAG 2.1 relative luminance; upgrade to APCA/WCAG 3 for perceptual lightness
+export function parseColor(str) {
+  // ponytail: validates RGB [0..255]; upgrade if color spaces beyond RGB are supported
+  if (str &amp;&amp; typeof str === &#x27;object&#x27;) {
+    return [str.r, str.g, str.b].every((v) =&gt; Number.isInteger(v) &amp;&amp; v &gt;= 0 &amp;&amp; v &lt;= 255)
+      ? { r: str.r, g: str.g, b: str.b }
+      : null;
+  }
+  if (typeof str !== &#x27;string&#x27;) return null;
+  let h = str.trim().replace(/^#/, &#x27;&#x27;);
+  if (h.length === 3) h = h.split(&#x27;&#x27;).map((c) =&gt; c + c).join(&#x27;&#x27;);
+  if (h.length !== 6 || !/^[0-9a-fA-F]{6}$/.test(h)) return null;
+  const n = parseInt(h, 16);
+  return { r: (n &gt;&gt; 16) &amp; 255, g: (n &gt;&gt; 8) &amp; 255, b: n &amp; 255 };
+}
+
+export function getLuminance(color) {
+  const rgb = parseColor(color);
+  if (!rgb) return 0;
+  const srgb = [rgb.r, rgb.g, rgb.b].map((v) =&gt; {
+    const c = v / 255;
+    return c &lt;= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+}
+
+export function getContrastRatio(fg, bg) {
+  const l1 = getLuminance(fg), l2 = getLuminance(bg);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+export function checkWcag(params = {}) {
+  const fg = params.fg ?? params.foreground, bg = params.bg ?? params.background;
+  const validColors = Boolean(parseColor(fg) &amp;&amp; parseColor(bg));
+  const ratio = validColors ? getContrastRatio(fg, bg) : 1;
+  const passAA = validColors &amp;&amp; ratio &gt;= 4.5, passLarge = validColors &amp;&amp; ratio &gt;= 3.0;
+  const parseDim = (v) =&gt; {
+    if (v === undefined) return 44;
+    if (typeof v === &#x27;number&#x27;) return Number.isFinite(v) &amp;&amp; v &gt;= 0 ? v : 0;
+    if (typeof v === &#x27;string&#x27; &amp;&amp; /^\d+(\.\d+)?$/.test(v.trim())) return Number(v);
+    return 0;
+  };
+  const width = parseDim(params.width), height = parseDim(params.height);
+  const targetPass = width &gt;= 44 &amp;&amp; height &gt;= 44;
+  return {
+    contrast: { ratio, passAA, passLarge },
+    targetSize: { pass: targetPass, width, height },
+    valid: Boolean(passAA &amp;&amp; targetPass),
+  };
+}
+
+export default checkWcag;
+
+const isMain = process.argv[1] &amp;&amp; resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  const args = process.argv.slice(2);
+  if (args.includes(&#x27;--help&#x27;) || args.includes(&#x27;-h&#x27;)) {
+    console.log(`MegaBrain WCAG 2.1 Checker
+
+Usage: node scripts/wcag_check.js --fg=&quot;#000&quot; --bg=&quot;#fff&quot; [--width=44] [--height=44] [--json]
+Flags: --fg=&lt;hex&gt;, --bg=&lt;hex&gt;, --width=&lt;px&gt;, --height=&lt;px&gt;, --json, --help`);
+    process.exit(0);
+  }
+  // ponytail: strict argv grammar without parser dep; upgrade if subcommands added
+  const VAL_FLAGS = [&#x27;--fg&#x27;, &#x27;--bg&#x27;, &#x27;--width&#x27;, &#x27;--height&#x27;];
+  const opts = {}, pos = [], fail = (m) =&gt; { console.error(m); process.exit(1); };
+  for (let i = 0; i &lt; args.length; i++) {
+    const a = args[i];
+    if (a === &#x27;--json&#x27;) continue;
+    const match = VAL_FLAGS.find((f) =&gt; a === f || a.startsWith(f + &#x27;=&#x27;));
+    if (match) {
+      if (opts[match.slice(2)] !== undefined) fail(`Duplicate ${match}`);
+      const eq = a.includes(&#x27;=&#x27;), raw = eq ? a.slice(match.length + 1) : args[++i];
+      if (raw === undefined || (!eq &amp;&amp; raw.startsWith(&#x27;-&#x27;)) || !raw.replace(/^[&quot;&#x27;]|[&quot;&#x27;]$/g, &#x27;&#x27;)) fail(`Missing value for ${match}`);
+      opts[match.slice(2)] = raw.replace(/^[&quot;&#x27;]|[&quot;&#x27;]$/g, &#x27;&#x27;);
+    } else if (a.startsWith(&#x27;-&#x27;)) {
+      fail(`Unknown flag: ${a}`);
+    } else {
+      pos.push(a);
+    }
+  }
+  if (pos.length &gt; 1 || (pos.length === 1 &amp;&amp; Object.keys(opts).length &gt; 0)) fail(&#x27;Invalid arguments&#x27;);
+  const file = pos[0];
+  const params = file
+    ? JSON.parse(readFileSync(file, &#x27;utf8&#x27;))
+    : {
+        fg: opts.fg ?? &#x27;#000000&#x27;, bg: opts.bg ?? &#x27;#ffffff&#x27;,
+        width: opts.width ? Number(opts.width) : 44, height: opts.height ? Number(opts.height) : 44,
+      };
+  if (file &amp;&amp; (params === null || typeof params !== &#x27;object&#x27; || Array.isArray(params))) {
+    throw new TypeError(&#x27;WCAG file must be a JSON object&#x27;);
+  }
+  const res = checkWcag(params);
+  if (args.includes(&#x27;--json&#x27;)) console.log(JSON.stringify(res, null, 2));
+  else console.log(`WCAG 2.1 Audit: ${res.valid ? &#x27;PASSED&#x27; : &#x27;FAILED&#x27;}
+  Contrast: ${res.contrast.ratio}:1 (AA: ${res.contrast.passAA ? &#x27;PASS&#x27; : &#x27;FAIL&#x27;}, Large: ${res.contrast.passLarge ? &#x27;PASS&#x27; : &#x27;FAIL&#x27;})
+  Target Size: ${res.targetSize.width}x${res.targetSize.height}px (${res.targetSize.pass ? &#x27;PASS&#x27; : &#x27;FAIL&#x27;})`);
+  if (!res.valid) process.exitCode = 1;
+}
+</pre></section><section><h2>src/client.js</h2><pre>import { getEndpoint, getToken, validateEndpoint } from &quot;./config.js&quot;;
+
+// ponytail: single-turn HTTP fetch; upgrade to persistent SSE reader / WebSocket when bidirectional server notifications needed
+async function sendRpc(method, params = {}, options = {}) {
+  const endpoint = validateEndpoint(options.endpoint || getEndpoint());
+  const token = options.token !== undefined ? options.token : getToken();
+  const origin = new URL(endpoint).origin;
+
+  const headers = {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Accept&quot;: &quot;application/json, text/event-stream&quot;,
+    &quot;Authorization&quot;: token ? `Bearer ${token}` : undefined,
+    &quot;Origin&quot;: origin,
+    ...options.headers
+  };
+  if (!headers[&quot;Authorization&quot;]) delete headers[&quot;Authorization&quot;];
+  headers[&quot;MCP-Protocol-Version&quot;] = &quot;2026-07-28&quot;;
+  headers[&quot;Mcp-Method&quot;] = method;
+  if (method === &quot;tools/call&quot; &amp;&amp; params.name) headers[&quot;Mcp-Name&quot;] = params.name;
+  params._meta = { ...(params._meta || {}), &quot;io.modelcontextprotocol/protocolVersion&quot;: &quot;2026-07-28&quot; };
+  params._meta[&quot;io.modelcontextprotocol/clientCapabilities&quot;] = params._meta[&quot;io.modelcontextprotocol/clientCapabilities&quot;] || { tools: {} };
+  params._meta[&quot;io.modelcontextprotocol/clientInfo&quot;] = params._meta[&quot;io.modelcontextprotocol/clientInfo&quot;] || { name: &quot;atlas-cli&quot;, version: &quot;4.0.0&quot; };
+
+  const id = Date.now();
+  const res = await fetch(endpoint, {
+    method: &quot;POST&quot;,
+    headers,
+    body: JSON.stringify({
+      jsonrpc: &quot;2.0&quot;,
+      id,
+      method,
+      params
+    }),
+    signal: options.signal
+  });
+
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}: ${res.statusText}`;
+    try {
+      const errData = await res.json();
+      if (errData?.error?.message) msg = `${msg} - ${errData.error.message}`;
+    } catch {}
+    throw new Error(msg);
+  }
+
+  const contentType = res.headers.get(&quot;content-type&quot;) || &quot;&quot;;
+  const match = (m) =&gt; Boolean(m &amp;&amp; typeof m === &quot;object&quot; &amp;&amp; m.jsonrpc === &quot;2.0&quot; &amp;&amp; m.id === id &amp;&amp; (&quot;result&quot; in m || &quot;error&quot; in m));
+  let data;
+  if (contentType.includes(&quot;text/event-stream&quot;)) {
+    const text = (await res.text()).replace(/\r\n/g, &quot;\n&quot;).replace(/\r/g, &quot;\n&quot;);
+    for (const frame of text.split(/\n{2,}/)) {
+      const lines = frame.split(&quot;\n&quot;).filter((l) =&gt; l.startsWith(&quot;data:&quot;)).map((l) =&gt; l.slice(5).replace(/^ /, &quot;&quot;));
+      if (!lines.length) continue;
+      try {
+        const m = JSON.parse(lines.join(&quot;\n&quot;));
+        if (match(m)) {
+          data = m;
+          break;
+        }
+      } catch {}
+    }
+  } else {
+    try {
+      const m = await res.json();
+      if (match(m)) data = m;
+    } catch {}
+  }
+
+  if (!data) throw new Error(&quot;Empty or invalid response from server&quot;);
+  if (data.error) {
+    throw new Error(data.error.message || `RPC Error ${data.error.code}`);
+  }
+  return data.result;
+}
+
+export async function callTool(name, args = {}, options = {}) {
+  return sendRpc(&quot;tools/call&quot;, { name, arguments: args }, options);
+}
+
+export async function listTools(options = {}) {
+  return sendRpc(&quot;tools/list&quot;, {}, options);
+}
+
+export async function checkHealth(options = {}) {
+  const endpoint = validateEndpoint(options.endpoint || getEndpoint());
+  const origin = new URL(endpoint).origin;
+  try {
+    const res = await fetch(`${origin}/health`, { signal: options.signal });
+    if (res.ok) return await res.json();
+  } catch {
+    // fallback to tool/ping if /health route is unreachable
+  }
+  return callTool(&quot;atlas.health&quot;, {}, options);
+}
+</pre></section><section><h2>src/commands/call.js</h2><pre>import { callTool } from &quot;../client.js&quot;;
+
+// ponytail: single tool caller; upgrade to multi-step agent pipeline when needed
+export function validateToolName(name) {
+  if (typeof name !== &quot;string&quot; || !name || name.includes(&quot;..&quot;) || name.endsWith(&quot;.&quot;)) {
+    throw new Error(&quot;Tool name must be atlas.&lt;tool&gt;&quot;);
+  }
+  if (!/^atlas[._][a-zA-Z0-9_]+$/.test(name)) {
+    throw new Error(&quot;Tool name must be atlas.&lt;tool&gt;&quot;);
+  }
+  return name.startsWith(&quot;atlas_&quot;) ? `atlas.${name.slice(&quot;atlas_&quot;.length)}` : name;
+}
+
+const FAILS = new Set([&quot;ERROR&quot;, &quot;FAILED&quot;, &quot;NOT_EXECUTED&quot;, &quot;BLOCKED&quot;, &quot;MALFORMED_RESULT&quot;, &quot;INSUFFICIENT_EVIDENCE&quot;, &quot;VERIFICATION_REQUIRED&quot;]);
+function hasErr(o) {
+  if (!o || typeof o !== &quot;object&quot; || Array.isArray(o)) return false;
+  const s = typeof o.status === &quot;string&quot; ? o.status.toUpperCase() : &quot;&quot;;
+  const err = typeof o.error_code === &quot;string&quot; &amp;&amp; o.error_code.length &gt; 0;
+  return s === &quot;SKIPPED&quot; ? ((typeof o.exit_code === &quot;number&quot; &amp;&amp; o.exit_code !== 0) || err) : (FAILS.has(s) || err);
+}
+
+export function isBusinessFailure(result) {
+  try {
+    if (!result || typeof result !== &quot;object&quot; || Array.isArray(result)) return false;
+    if (result.isError === true || hasErr(result)) return true;
+    if (hasErr(result.structuredContent)) return true;
+    if (Array.isArray(result.content)) {
+      for (const item of result.content) {
+        if (item &amp;&amp; item.type === &quot;text&quot; &amp;&amp; typeof item.text === &quot;string&quot;) {
+          try {
+            if (hasErr(JSON.parse(item.text))) return true;
+          } catch {}
+        }
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+export async function run({ positionals = [], flags = {}, callToolFn = callTool }) {
+  const pos = Array.isArray(positionals) ? positionals : [];
+  const [name, rawArgs] = pos;
+  if (!name) throw new Error(&quot;Tool name required. Usage: megabrain call &lt;tool&gt; [args-json]&quot;);
+  const tool = validateToolName(name);
+  if (pos.length &gt; 2) throw new Error(&quot;Too many arguments. Usage: megabrain call &lt;tool&gt; [args-json]&quot;);
+  let args = {};
+  if (rawArgs !== undefined) {
+    try {
+      args = JSON.parse(rawArgs);
+    } catch (e) {
+      throw new Error(`Invalid JSON arguments: ${e.message}`);
+    }
+    if (args === null || Array.isArray(args) || typeof args !== &quot;object&quot;) {
+      throw new Error(&quot;Arguments must be a JSON object&quot;);
+    }
+  }
+  const result = await callToolFn(tool, args, { endpoint: flags.endpoint, token: flags.token });
+  if (isBusinessFailure(result)) process.exitCode = 1;
+  if (flags.json) {
+    console.log(JSON.stringify(result));
+  } else {
+    const formatted = typeof result === &quot;object&quot; ? JSON.stringify(result, null, 2) : result;
+    console.log(formatted);
+  }
+  return result;
+}
+</pre></section><section><h2>src/commands/login.js</h2><pre>import { getToken, getEndpoint, saveConfig } from &quot;../config.js&quot;;
+
+// ponytail: cli token persistence; upgrade to interactive oauth flow when supported
+export async function run({ positionals = [], flags = {} }) {
+  const token = getToken();
+  if (!token) throw new Error(&quot;No token provided. Set MEGABRAIN_TOKEN.&quot;);
+  const effectiveEndpoint = flags.endpoint || getEndpoint();
+  saveConfig({ token, endpoint: effectiveEndpoint });
+  const out = { status: &quot;ok&quot;, token: Boolean(token), endpoint: effectiveEndpoint };
+  console.log(flags.json ? JSON.stringify(out) : `Configured credentials for ${effectiveEndpoint}`);
+  return out;
+}
+</pre></section><!--/email_off--></main></body></html>

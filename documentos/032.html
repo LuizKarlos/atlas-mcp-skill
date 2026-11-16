@@ -1,0 +1,91 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>scripts/dag_validator.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>scripts/dag_validator.js</h1><!--email_off--><pre>#!/usr/bin/env node
+import { readFileSync } from &#x27;node:fs&#x27;;
+import { resolve } from &#x27;node:path&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import process from &#x27;node:process&#x27;;
+
+// ponytail: in-memory Kahn algorithm; upgrade to streaming DAG for 100k+ nodes
+export function validateDAG(tasks = []) {
+  if (!Array.isArray(tasks)) return { valid: false, cycles: [], missing_dependencies: [], waves: [] };
+
+  const seenIds = new Set();
+  for (const t of tasks) {
+    const id = t ? t.id : undefined;
+    const idOk = (typeof id === &#x27;string&#x27; &amp;&amp; id.length &gt; 0) || (typeof id === &#x27;number&#x27; &amp;&amp; Number.isFinite(id));
+    if (!idOk) return { valid: false, cycles: [], missing_dependencies: [], waves: [], error: &#x27;INVALID_ID&#x27; };
+    if (seenIds.has(id)) return { valid: false, cycles: [], missing_dependencies: [], waves: [], error: &#x27;DUPLICATE_ID&#x27; };
+    seenIds.add(id);
+  }
+
+  const inDegree = new Map();
+  const dependents = new Map();
+  const knownIds = new Set(tasks.map((t) =&gt; t.id)), missing_dependencies = [];
+
+  for (const t of tasks) {
+    inDegree.set(t.id, 0);
+    dependents.set(t.id, []);
+  }
+
+  for (const t of tasks) {
+    // Canonical dependencies has documented precedence over legacy depends_on
+    const raw = t.dependencies ?? t.depends_on;
+    const deps = Array.isArray(raw) ? raw : [];
+    for (const dep of new Set(deps)) {
+      if (!knownIds.has(dep)) { if (!missing_dependencies.includes(dep)) missing_dependencies.push(dep); }
+      else { inDegree.set(t.id, inDegree.get(t.id) + 1); dependents.get(dep).push(t.id); }
+    }
+  }
+
+  const waves = [];
+  let currentWave = [];
+  for (const t of tasks) {
+    if (inDegree.get(t.id) === 0) currentWave.push(t.id);
+  }
+
+  let processed = 0;
+  while (currentWave.length &gt; 0) {
+    waves.push(currentWave);
+    processed += currentWave.length;
+    const nextWave = [];
+    for (const id of currentWave) {
+      for (const nextId of dependents.get(id) || []) {
+        const deg = inDegree.get(nextId) - 1;
+        inDegree.set(nextId, deg);
+        if (deg === 0) nextWave.push(nextId);
+      }
+    }
+    currentWave = nextWave;
+  }
+
+  const valid = processed === tasks.length &amp;&amp; missing_dependencies.length === 0;
+  const cycles = valid ? [] : tasks.filter((t) =&gt; (inDegree.get(t.id) || 0) &gt; 0).map((t) =&gt; t.id);
+
+  return { valid, cycles, missing_dependencies, waves };
+}
+
+export default validateDAG;
+
+const isMain = process.argv[1] &amp;&amp; resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  if (process.argv.includes(&#x27;--help&#x27;) || process.argv.includes(&#x27;-h&#x27;)) {
+    console.log(`MegaBrain DAG Validator
+
+Usage:
+  node scripts/dag_validator.js [tasks.json]
+  cat tasks.json | node scripts/dag_validator.js
+
+Validates DAG acyclicity and computes topological execution waves.`);
+    process.exit(0);
+  }
+
+  try {
+    const raw = process.argv[2] ? readFileSync(process.argv[2], &#x27;utf8&#x27;) : readFileSync(0, &#x27;utf8&#x27;);
+    const result = validateDAG(JSON.parse(raw));
+    console.log(JSON.stringify(result, null, 2));
+    if (!result.valid) process.exitCode = 1;
+  } catch (err) {
+    console.error(`Error: ${err.message}`);
+    process.exit(1);
+  }
+}
+</pre><!--/email_off--></main></body></html>

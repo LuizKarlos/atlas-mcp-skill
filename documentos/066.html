@@ -1,0 +1,71 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_wcag_file.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_wcag_file.test.js</h1><!--email_off--><pre>import { writeFileSync, mkdtempSync, rmSync } from &#x27;node:fs&#x27;;
+import { join } from &#x27;node:path&#x27;;
+import { tmpdir } from &#x27;node:os&#x27;;
+import { spawnSync } from &#x27;node:child_process&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const SCRIPT = fileURLToPath(new URL(&#x27;../scripts/wcag_check.js&#x27;, import.meta.url));
+const TMP = mkdtempSync(join(tmpdir(), &#x27;wcag_i379_&#x27;));
+
+const run = (args) =&gt; spawnSync(process.execPath, [SCRIPT, &#x27;--json&#x27;, ...args], { encoding: &#x27;utf8&#x27; });
+
+test(&#x27;WCAG_MISSING: nonexistent file fails closed (non-zero, never valid)&#x27;, () =&gt; {
+  const r = run([join(TMP, &#x27;nope.json&#x27;)]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr || &#x27;&#x27;, /ENOENT|no such file/i);
+  assert.doesNotMatch(r.stdout || &#x27;&#x27;, /&quot;valid&quot;:\s*true/);
+});
+
+test(&#x27;WCAG_CSS_FILE: CSS file is not valid JSON, fails closed&#x27;, () =&gt; {
+  const f = join(TMP, &#x27;style.css&#x27;);
+  writeFileSync(f, &#x27;body { color: red }&#x27;);
+  const r = run([f]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr || &#x27;&#x27;, /SyntaxError|Unexpected/i);
+  assert.doesNotMatch(r.stdout || &#x27;&#x27;, /&quot;valid&quot;:\s*true/);
+});
+
+test(&#x27;WCAG_BAD_JSON: malformed JSON fails closed&#x27;, () =&gt; {
+  const f = join(TMP, &#x27;bad.json&#x27;);
+  writeFileSync(f, &#x27;{ fg: &quot;#000&quot;, bg: &quot;#fff&quot; }&#x27;);
+  const r = run([f]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr || &#x27;&#x27;, /SyntaxError|Unexpected/i);
+  assert.doesNotMatch(r.stdout || &#x27;&#x27;, /&quot;valid&quot;:\s*true/);
+});
+
+test(&#x27;WCAG_OK_FLAGS: explicit fg/bg flags still compute a passing result&#x27;, () =&gt; {
+  const r = run([&#x27;--fg=#000000&#x27;, &#x27;--bg=#ffffff&#x27;]);
+  assert.equal(r.status, 0);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.valid, true);
+  assert.equal(out.contrast.passAA, true);
+  assert.equal(out.contrast.ratio, 21);
+  assert.equal(out.targetSize.pass, true);
+});
+
+test(&#x27;WCAG_WHITE_WHITE: white-on-white with target under 44px fails&#x27;, () =&gt; {
+  const f = join(TMP, &#x27;ww.json&#x27;);
+  writeFileSync(f, JSON.stringify({ fg: &#x27;#ffffff&#x27;, bg: &#x27;#ffffff&#x27;, width: 24, height: 24 }));
+  const r = run([f]);
+  assert.notEqual(r.status, 0);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.valid, false);
+  assert.equal(out.contrast.ratio, 1);
+  assert.equal(out.contrast.passAA, false);
+  assert.equal(out.targetSize.pass, false);
+});
+
+test(&#x27;WCAG_INCOMPLETE_JSON: empty object does not inherit green defaults&#x27;, () =&gt; {
+  const f = join(TMP, &#x27;empty.json&#x27;);
+  writeFileSync(f, &#x27;{}&#x27;);
+  const r = run([f]);
+  assert.notEqual(r.status, 0);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.valid, false);
+});
+
+test(&#x27;cleanup&#x27;, () =&gt; { rmSync(TMP, { recursive: true, force: true }); });
+</pre><!--/email_off--></main></body></html>

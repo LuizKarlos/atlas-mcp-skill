@@ -1,0 +1,52 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue_beta_authenticated_status_setup.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue_beta_authenticated_status_setup.test.js</h1><!--email_off--><pre>import test from &quot;node:test&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import http from &quot;node:http&quot;;
+import fs from &quot;node:fs&quot;;
+import os from &quot;node:os&quot;;
+import path from &quot;node:path&quot;;
+import { execFile } from &quot;node:child_process&quot;;
+
+const BIN = path.resolve(&quot;bin/megabrain.js&quot;);
+
+test(&quot;authenticated status and setup exit non-zero on 401 and 0 on valid token&quot;, async () =&gt; {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), &quot;s11-&quot;));
+  const server = http.createServer((req, res) =&gt; {
+    if (req.url === &quot;/health&quot;) {
+      res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+      return res.end(JSON.stringify({ status: &quot;HEALTHY&quot;, ok: true }));
+    }
+    if (req.headers.authorization === &quot;Bearer valid&quot;) {
+      let b = &quot;&quot;;
+      req.on(&quot;data&quot;, (c) =&gt; (b += c));
+      return req.on(&quot;end&quot;, () =&gt; {
+        const id = JSON.parse(b || &quot;{}&quot;).id ?? 1;
+        res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+        res.end(JSON.stringify({ jsonrpc: &quot;2.0&quot;, id, result: { tools: [] } }));
+      });
+    }
+    res.writeHead(401, { &quot;content-type&quot;: &quot;application/json&quot; });
+    res.end(JSON.stringify({ error: { message: &quot;Unauthorized&quot; } }));
+  });
+  await new Promise((r) =&gt; server.listen(0, &quot;127.0.0.1&quot;, r));
+  const endpoint = `http://127.0.0.1:${server.address().port}/mcp`;
+  const run = (cmd, token) =&gt;
+    new Promise((resolve) =&gt; {
+      execFile(
+        process.execPath,
+        [BIN, cmd, &quot;--endpoint&quot;, endpoint, ...(cmd === &quot;setup&quot; ? [&quot;--dest&quot;, tmp] : []), &quot;--json&quot;],
+        { env: { ...process.env, XDG_CONFIG_HOME: tmp, MEGABRAIN_TOKEN: token } },
+        (err) =&gt; resolve(err ? (err.code ?? 1) : 0)
+      );
+    });
+
+  try {
+    assert.notEqual(await run(&quot;status&quot;, &quot;bad&quot;), 0);
+    assert.notEqual(await run(&quot;setup&quot;, &quot;bad&quot;), 0);
+    assert.equal(await run(&quot;status&quot;, &quot;valid&quot;), 0);
+    assert.equal(await run(&quot;setup&quot;, &quot;valid&quot;), 0);
+  } finally {
+    server.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+</pre><!--/email_off--></main></body></html>

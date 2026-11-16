@@ -1,0 +1,139 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_transport.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_transport.test.js</h1><!--email_off--><pre>import test, { after } from &quot;node:test&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { callTool, listTools } from &quot;../src/client.js&quot;;
+
+const ENDPOINT = &quot;https://mcp.example.test/mcp&quot;;
+const TOKEN = &quot;secret-token-value&quot;;
+const PROTOCOL_VERSION = &quot;2026-07-28&quot;;
+
+const originalFetch = globalThis.fetch;
+after(() =&gt; {
+  globalThis.fetch = originalFetch;
+});
+
+function mockFetch(capture, resHandler) {
+  globalThis.fetch = async (url, init) =&gt; {
+    capture.url = String(url);
+    capture.init = init;
+    const reqId = init?.body ? JSON.parse(init.body).id : undefined;
+    if (resHandler) return resHandler(reqId, init);
+    return {
+      ok: true,
+      status: 200,
+      statusText: &quot;OK&quot;,
+      headers: {
+        get: (name) =&gt; (name.toLowerCase() === &quot;content-type&quot; ? &quot;application/json&quot; : null)
+      },
+      json: async () =&gt; ({ jsonrpc: &quot;2.0&quot;, id: reqId, result: { ok: true } })
+    };
+  };
+  return capture;
+}
+
+test(&quot;TR_HEADERS_HEALTH: tools/call sends contract headers and protocol _meta&quot;, async () =&gt; {
+  const capture = mockFetch({});
+
+  await callTool(&quot;atlas.health&quot;, {}, { endpoint: ENDPOINT, token: TOKEN });
+
+  const { headers } = capture.init;
+  assert.equal(headers[&quot;MCP-Protocol-Version&quot;], PROTOCOL_VERSION);
+  assert.equal(headers[&quot;Mcp-Method&quot;], &quot;tools/call&quot;);
+  assert.equal(headers[&quot;Mcp-Name&quot;], &quot;atlas.health&quot;);
+  assert.equal(headers[&quot;Authorization&quot;], `Bearer ${TOKEN}`);
+
+  const body = JSON.parse(capture.init.body);
+  assert.equal(body.method, &quot;tools/call&quot;);
+  assert.equal(body.params.name, &quot;atlas.health&quot;);
+  assert.equal(body.params._meta[&quot;io.modelcontextprotocol/protocolVersion&quot;], PROTOCOL_VERSION);
+  assert.equal(typeof body.params._meta[&quot;io.modelcontextprotocol/clientCapabilities&quot;], &quot;object&quot;);
+  assert.ok(body.params._meta[&quot;io.modelcontextprotocol/clientCapabilities&quot;] !== null);
+  assert.ok(!Array.isArray(body.params._meta[&quot;io.modelcontextprotocol/clientCapabilities&quot;]));
+  assert.ok(&quot;tools&quot; in body.params._meta[&quot;io.modelcontextprotocol/clientCapabilities&quot;]);
+});
+
+test(&quot;TR_HEADERS_LIST: tools/list sends contract headers without Mcp-Name&quot;, async () =&gt; {
+  const capture = mockFetch({});
+
+  await listTools({ endpoint: ENDPOINT, token: TOKEN });
+
+  const { headers } = capture.init;
+  assert.equal(headers[&quot;MCP-Protocol-Version&quot;], PROTOCOL_VERSION);
+  assert.equal(headers[&quot;Mcp-Method&quot;], &quot;tools/list&quot;);
+  assert.equal(headers[&quot;Mcp-Name&quot;], undefined);
+
+  const body = JSON.parse(capture.init.body);
+  assert.equal(body.method, &quot;tools/list&quot;);
+  assert.equal(body.params._meta[&quot;io.modelcontextprotocol/protocolVersion&quot;], PROTOCOL_VERSION);
+});
+
+test(&quot;TR_NO_TOKEN_IN_URL: bearer token never reaches the URL&quot;, async () =&gt; {
+  const capture = mockFetch({});
+
+  await callTool(&quot;atlas.health&quot;, {}, { endpoint: ENDPOINT, token: TOKEN });
+
+  assert.equal(capture.url, ENDPOINT);
+  assert.ok(!capture.url.includes(TOKEN));
+  assert.ok(!capture.url.toLowerCase().includes(&quot;token&quot;));
+  assert.ok(!capture.url.includes(&quot;?&quot;));
+  assert.equal(capture.init.headers[&quot;Authorization&quot;], `Bearer ${TOKEN}`);
+});
+
+
+test(&quot;TR_SSE_CORRELATED: ignores progress and foreign id, matches frame with CRLF/LF&quot;, async () =&gt; {
+  mockFetch({}, (id) =&gt; ({
+    ok: true,
+    status: 200,
+    headers: { get: (name) =&gt; (name.toLowerCase() === &quot;content-type&quot; ? &quot;text/event-stream&quot; : null) },
+    text: async () =&gt; [
+      &#x27;data: {&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;method&quot;:&quot;notifications/progress&quot;,&quot;params&quot;:{&quot;progress&quot;:50}}&#x27;,
+      &#x27;data: {&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:999,&quot;result&quot;:{&quot;wrong&quot;:true}}&#x27;,
+      `data: {&quot;jsonrpc&quot;:&quot;2.0&quot;,\r\ndata: &quot;id&quot;:${id},&quot;result&quot;:{&quot;toolResult&quot;:&quot;ok&quot;}}`
+    ].join(&quot;\r\n\r\n&quot;)
+  }));
+
+  const res = await callTool(&quot;atlas.health&quot;, {}, { endpoint: ENDPOINT, token: TOKEN });
+  assert.deepEqual(res, { toolResult: &quot;ok&quot; });
+});
+
+test(&quot;TR_SSE_NO_CORRELATED: fails explicitly when no correlated frame exists&quot;, async () =&gt; {
+  mockFetch({}, () =&gt; ({
+    ok: true,
+    status: 200,
+    headers: { get: (name) =&gt; (name.toLowerCase() === &quot;content-type&quot; ? &quot;text/event-stream&quot; : null) },
+    text: async () =&gt; &#x27;data: {&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;method&quot;:&quot;notifications/progress&quot;,&quot;params&quot;:{&quot;progress&quot;:100}}\n\n&#x27;
+  }));
+
+  await assert.rejects(
+    async () =&gt; callTool(&quot;atlas.health&quot;, {}, { endpoint: ENDPOINT, token: TOKEN }),
+    /Empty or invalid response/
+  );
+});
+
+test(&quot;TR_JSON_WRONG_ID: fails explicitly when simple JSON has mismatched id&quot;, async () =&gt; {
+  mockFetch({}, () =&gt; ({
+    ok: true,
+    status: 200,
+    headers: { get: (name) =&gt; (name.toLowerCase() === &quot;content-type&quot; ? &quot;application/json&quot; : null) },
+    json: async () =&gt; ({ jsonrpc: &quot;2.0&quot;, id: 999999, result: { ok: true } })
+  }));
+
+  await assert.rejects(
+    async () =&gt; callTool(&quot;atlas.health&quot;, {}, { endpoint: ENDPOINT, token: TOKEN }),
+    /Empty or invalid response/
+  );
+});
+
+test(&quot;TR_ERROR_PRESERVED: preserves RPC error from correlated response&quot;, async () =&gt; {
+  mockFetch({}, (id) =&gt; ({
+    ok: true,
+    status: 200,
+    headers: { get: (name) =&gt; (name.toLowerCase() === &quot;content-type&quot; ? &quot;application/json&quot; : null) },
+    json: async () =&gt; ({ jsonrpc: &quot;2.0&quot;, id, error: { code: -32601, message: &quot;Method not found&quot; } })
+  }));
+
+  await assert.rejects(
+    async () =&gt; callTool(&quot;atlas.health&quot;, {}, { endpoint: ENDPOINT, token: TOKEN }),
+    /Method not found/
+  );
+});
+</pre><!--/email_off--></main></body></html>

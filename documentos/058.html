@@ -1,0 +1,50 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_ledger_genesis.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_ledger_genesis.test.js</h1><!--email_off--><pre>import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { computeBlockHash, verifyLedger } from &#x27;../scripts/merkle_verify.js&#x27;;
+
+function mk(index, prev, data = &#x27;x&#x27;) {
+  const b = { index, previous_hash: prev, data };
+  b.hash = computeBlockHash(b);
+  return b;
+}
+
+test(&#x27;GENESIS_F64_INVALID&#x27;, () =&gt; {
+  assert.equal(verifyLedger([mk(0, &#x27;f&#x27;.repeat(64))]).valid, false);
+});
+
+test(&#x27;GENESIS_INDEX42_INVALID&#x27;, () =&gt; {
+  assert.equal(verifyLedger([mk(42, &#x27;0&#x27;)]).valid, false);
+});
+
+test(&#x27;GENESIS_ZERO_OK&#x27;, () =&gt; {
+  assert.equal(verifyLedger([mk(0, &#x27;0&#x27;.repeat(64))]).valid, true);
+});
+
+test(&#x27;GENESIS_MISSING_INDEX_INVALID&#x27;, () =&gt; { const b={previous_hash:&#x27;0&#x27;, data:&#x27;x&#x27;}; b.hash=computeBlockHash(b); assert.equal(verifyLedger([b]).valid, false); });
+
+test(&#x27;INDEX_STRING_COERCION_INVALID&#x27;, () =&gt; {
+  const g = mk(0, &#x27;0&#x27;.repeat(64));
+  assert.equal(verifyLedger([g, mk(&#x27;1&#x27;, g.hash)]).valid, false);
+});
+
+test(&#x27;INDEX_NULL_INVALID&#x27;, () =&gt; {
+  const g = mk(0, &#x27;0&#x27;.repeat(64));
+  assert.equal(verifyLedger([mk(null, &#x27;0&#x27;.repeat(64))]).valid, false);
+  assert.equal(verifyLedger([g, mk(null, g.hash)]).valid, false);
+});
+
+test(&#x27;INDEX_FLOAT_INVALID&#x27;, () =&gt; {
+  const g = mk(0, &#x27;0&#x27;.repeat(64));
+  assert.equal(verifyLedger([g, mk(1.5, g.hash)]).valid, false);
+});
+
+test(&#x27;INDEX_UNSAFE_INTEGER_INVALID&#x27;, () =&gt; {
+  const g = mk(0, &#x27;0&#x27;.repeat(64));
+  assert.equal(verifyLedger([g, mk(Number.MAX_SAFE_INTEGER + 1, g.hash)]).valid, false);
+});
+
+test(&#x27;INDEX_VALID_SEQUENCE_OK&#x27;, () =&gt; {
+  const g = mk(0, &#x27;0&#x27;.repeat(64));
+  assert.equal(verifyLedger([g, mk(1, g.hash)]).valid, true);
+});
+</pre><!--/email_off--></main></body></html>

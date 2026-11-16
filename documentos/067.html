@@ -1,0 +1,49 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_wcag_precision.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_wcag_precision.test.js</h1><!--email_off--><pre>import test from &quot;node:test&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { checkWcag, getContrastRatio } from &quot;../scripts/wcag_check.js&quot;;
+
+function oracleLum(hex) {
+  const c = [1, 3, 5].map((i) =&gt; parseInt(hex.slice(i, i + 2), 16) / 255);
+  const lin = c.map((v) =&gt; (v &lt;= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+}
+
+function oracleRatio(fg, bg) {
+  const l1 = oracleLum(fg), l2 = oracleLum(bg);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+test(&quot;caso #070707/#777777 reprova passAA e valid usando razão exata&quot;, () =&gt; {
+  const res = checkWcag({ fg: &quot;#070707&quot;, bg: &quot;#777777&quot; });
+  const ratio = getContrastRatio(&quot;#070707&quot;, &quot;#777777&quot;);
+  const expectedRatio = oracleRatio(&quot;#070707&quot;, &quot;#777777&quot;);
+
+  assert.equal(ratio, expectedRatio);
+  assert.ok(ratio &lt; 4.5);
+  assert.equal(res.contrast.ratio, expectedRatio);
+  assert.equal(res.contrast.passAA, false);
+  assert.equal(res.contrast.passLarge, true);
+  assert.equal(res.valid, false);
+});
+
+test(&quot;oraculo sRGB independente nos limites 4.5 e 3.0 e preservacao de 21 e 1&quot;, () =&gt; {
+  assert.equal(getContrastRatio(&quot;#000000&quot;, &quot;#ffffff&quot;), 21);
+  assert.equal(oracleRatio(&quot;#000000&quot;, &quot;#ffffff&quot;), 21);
+  assert.equal(getContrastRatio(&quot;#ffffff&quot;, &quot;#ffffff&quot;), 1);
+  assert.equal(oracleRatio(&quot;#ffffff&quot;, &quot;#ffffff&quot;), 1);
+
+  const r45Below = oracleRatio(&quot;#070707&quot;, &quot;#777777&quot;);
+  const r45Above = oracleRatio(&quot;#060606&quot;, &quot;#777777&quot;);
+  assert.ok(r45Below &lt; 4.5 &amp;&amp; r45Below &gt;= 4.49);
+  assert.ok(r45Above &gt;= 4.5);
+  assert.equal(checkWcag({ fg: &quot;#070707&quot;, bg: &quot;#777777&quot; }).contrast.passAA, false);
+  assert.equal(checkWcag({ fg: &quot;#060606&quot;, bg: &quot;#777777&quot; }).contrast.passAA, true);
+
+  const r30Below = oracleRatio(&quot;#2e2f2f&quot;, &quot;#777777&quot;);
+  const r30Above = oracleRatio(&quot;#2e2e2e&quot;, &quot;#777777&quot;);
+  assert.ok(r30Below &lt; 3.0 &amp;&amp; r30Below &gt;= 2.99);
+  assert.ok(r30Above &gt;= 3.0);
+  assert.equal(checkWcag({ fg: &quot;#2e2f2f&quot;, bg: &quot;#777777&quot; }).contrast.passLarge, false);
+  assert.equal(checkWcag({ fg: &quot;#2e2e2e&quot;, bg: &quot;#777777&quot; }).contrast.passLarge, true);
+});
+</pre><!--/email_off--></main></body></html>

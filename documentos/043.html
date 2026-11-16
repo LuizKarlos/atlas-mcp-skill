@@ -1,0 +1,35 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_ast_function_signature.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_ast_function_signature.test.js</h1><!--email_off--><pre>import &#x27;./issue351_ast_interface.test.js&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { sliceAst } from &#x27;../scripts/ast_slice.js&#x27;;
+
+test(&#x27;AST_FN_DESTRUCTURED_TYPE_RETURN_PRESERVED&#x27;, () =&gt; {
+  const code = &#x27;export function foo({name}:{name:string}):string { return name; }&#x27;;
+  const o = sliceAst(code, &#x27;ts&#x27;);
+  assert.equal(o.declarations[0], &#x27;export function foo({name}:{name:string}):string&#x27;);
+  assert.doesNotMatch(o.outline, /return/);
+});
+
+test(&#x27;AST_FN_DESTRUCTURED_MULTILINE_PRESERVED&#x27;, () =&gt; {
+  const code = `export function foo(
+  { name }: { name: string }
+): string {
+  return name;
+}`;
+  const o = sliceAst(code, &#x27;ts&#x27;);
+  assert.match(o.declarations[0], /export function foo/);
+  assert.match(o.declarations[0], /name:\s*string/);
+  assert.match(o.declarations[0], /:\s*string/);
+  assert.doesNotMatch(o.outline, /return/);
+});
+
+test(&#x27;AST_FN_TWO_FUNCTIONS_NOT_MERGED&#x27;, () =&gt; {
+  const code = `export function foo({name}:{name:string}):string { return name; }
+export function bar({id}:{id:number}):number { return id; }`;
+  const o = sliceAst(code, &#x27;ts&#x27;);
+  assert.equal(o.declarations.length, 2);
+  assert.equal(o.declarations[0], &#x27;export function foo({name}:{name:string}):string&#x27;);
+  assert.equal(o.declarations[1], &#x27;export function bar({id}:{id:number}):number&#x27;);
+  assert.doesNotMatch(o.outline, /return/);
+});
+</pre><!--/email_off--></main></body></html>

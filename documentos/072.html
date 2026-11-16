@@ -1,0 +1,35 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue_beta_setup_surface.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue_beta_setup_surface.test.js</h1><!--email_off--><pre>import fs from &quot;node:fs&quot;;
+import path from &quot;node:path&quot;;
+import os from &quot;node:os&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { test } from &quot;node:test&quot;;
+import { run } from &quot;../src/commands/setup.js&quot;;
+
+const EXPECTED_SKILLS = [
+  &quot;megabrain-orchestrate&quot;, &quot;megabrain-pipeline&quot;, &quot;megabrain-review&quot;,
+  &quot;megabrain-audit&quot;, &quot;megabrain-context&quot;, &quot;megabrain-ui&quot;, &quot;megabrain-surface&quot;
+];
+
+test(&quot;setup installs megabrain-surface and 7 skills idempotently&quot;, async () =&gt; {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), &quot;setup-surface-&quot;));
+  const dest = path.join(tmp, &quot;skills&quot;);
+  const [prevLog, prevFetch] = [console.log, globalThis.fetch];
+  console.log = () =&gt; {};
+  globalThis.fetch = async () =&gt; new Response(JSON.stringify({ status: &quot;ok&quot; }), { status: 200, headers: { &quot;content-type&quot;: &quot;application/json&quot; } });
+  try {
+    for (let i = 0; i &lt; 2; i++) {
+      const report = await run({ flags: { dest, endpoint: &quot;http://127.0.0.1:9000/mcp&quot;, json: true } });
+      for (const skill of EXPECTED_SKILLS) {
+        assert.ok(fs.existsSync(path.join(dest, skill)), `missing skill in dest: ${skill}`);
+        assert.ok(report.installation.installed.includes(skill), `missing in report: ${skill}`);
+      }
+      assert.ok(fs.existsSync(path.join(dest, &quot;megabrain-surface&quot;, &quot;SKILL.md&quot;)));
+      assert.equal(report.installation.installed.length, 8);
+    }
+  } finally {
+    console.log = prevLog;
+    globalThis.fetch = prevFetch;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+</pre><!--/email_off--></main></body></html>

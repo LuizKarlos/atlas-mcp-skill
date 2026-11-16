@@ -1,0 +1,231 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_surface_reference.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_surface_reference.test.js</h1><!--email_off--><pre>import test from &quot;node:test&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import fs from &quot;node:fs&quot;;
+
+const CANONICAL = [
+  &quot;atlas.health&quot;, &quot;atlas.create_account&quot;, &quot;atlas.issue_api_key&quot;, &quot;atlas.rotate_api_key&quot;,
+  &quot;atlas.list_api_keys&quot;, &quot;atlas.revoke_api_key&quot;, &quot;atlas.create_project&quot;, &quot;atlas.list_projects&quot;,
+  &quot;atlas.get_project&quot;, &quot;atlas.archive_project&quot;, &quot;atlas.register_check_manifest&quot;,
+  &quot;atlas.list_check_manifests&quot;, &quot;atlas.create_mission&quot;, &quot;atlas.list_missions&quot;,
+  &quot;atlas.get_mission&quot;, &quot;atlas.archive_mission&quot;, &quot;atlas.claim_task&quot;, &quot;atlas.renew_task_lease&quot;,
+  &quot;atlas.submit_task_result&quot;, &quot;atlas.submit_task_review&quot;, &quot;atlas.begin_upload&quot;,
+  &quot;atlas.complete_upload&quot;, &quot;atlas.request_verification&quot;, &quot;atlas.get_verification&quot;,
+  &quot;atlas.verify_and_attest&quot;, &quot;atlas.export_evidence&quot;, &quot;atlas.get_usage&quot;
+];
+
+function extractCalls(markdown) {
+  const pattern = /megabrain call ([\w.]+) &#x27;([^&#x27;]+)&#x27;/g;
+  const calls = {};
+  for (const match of markdown.matchAll(pattern)) {
+    calls[match[1]] = JSON.parse(match[2]);
+  }
+  return calls;
+}
+
+test(&quot;atlas surface catalog 27/27&quot;, () =&gt; {
+  const fullDoc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const pkg = JSON.parse(fs.readFileSync(&quot;package.json&quot;, &quot;utf8&quot;));
+  assert.ok(pkg.files &amp;&amp; pkg.files.includes(&quot;megabrain-surface&quot;));
+  assert.ok(!fullDoc.includes(&quot;megabrain call megabrain.recommend&quot;));
+  assert.ok(!fullDoc.includes(&quot;megabrain call megabrain.infer&quot;));
+  assert.ok(!fullDoc.includes(&quot;megabrain call megabrain.orchestrate&quot;));
+  const calls = extractCalls(fullDoc.split(&quot;## Aliases underscore&quot;)[0]);
+  for (const tool of CANONICAL) {
+    assert.ok(tool in calls, &quot;missing call &quot; + tool);
+  }
+  assert.deepEqual(Object.keys(calls[&quot;atlas.health&quot;]), []);
+  assert.deepEqual(Object.keys(calls[&quot;atlas.create_project&quot;]), [&quot;name&quot;]);
+  assert.ok(calls[&quot;atlas.create_mission&quot;].project_id &amp;&amp; calls[&quot;atlas.create_mission&quot;].mission_id &amp;&amp; Array.isArray(calls[&quot;atlas.create_mission&quot;].tasks));
+  assert.ok(calls[&quot;atlas.claim_task&quot;].project_id);
+  assert.ok(calls[&quot;atlas.request_verification&quot;].snapshot_b64);
+  assert.ok(calls[&quot;atlas.export_evidence&quot;].project_id &amp;&amp; calls[&quot;atlas.export_evidence&quot;].mission_id);
+  assert.ok(calls[&quot;atlas.get_usage&quot;].project_id);
+});
+
+test(&quot;atlas surface aliases 27/27&quot;, () =&gt; {
+  const fullDoc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const aliasSection = fullDoc.split(&quot;## Aliases underscore — 27/27&quot;)[1];
+  assert.ok(aliasSection, &quot;alias section exists&quot;);
+  const pairs = [...aliasSection.matchAll(/(atlas\.([a-z0-9_]+))\s*-&gt;\s*(atlas_([a-z0-9_]+))/g)];
+  assert.equal(pairs.length, 27, &quot;must contain exactly 27 alias pairs&quot;);
+  const canonicalSet = new Set(pairs.map((p) =&gt; p[1]));
+  const aliasSet = new Set(pairs.map((p) =&gt; p[3]));
+  assert.equal(canonicalSet.size, 27, &quot;27 unique canonical tools&quot;);
+  assert.equal(aliasSet.size, 27, &quot;27 unique alias tools&quot;);
+  for (const match of pairs) {
+    const [, canonical, canonTool, alias] = match;
+    assert.equal(alias, `atlas_${canonical.slice(&quot;atlas.&quot;.length)}`);
+    assert.equal(alias, `atlas_${canonTool}`);
+  }
+  const exampleMatch = aliasSection.match(/megabrain call (atlas_health)\s*&#x27;([^&#x27;]+)&#x27;/);
+  assert.ok(exampleMatch, &quot;example call exists&quot;);
+  assert.deepEqual(JSON.parse(exampleMatch[2]), {});
+  assert.ok(aliasSection.includes(&quot;atlas.&quot;), &quot;mentions atlas. rejection&quot;);
+  assert.ok(aliasSection.includes(&quot;atlas..health&quot;), &quot;mentions atlas..health rejection&quot;);
+  assert.match(aliasSection, /string vazia/i, &quot;mentions string vazia rejection&quot;);
+});
+
+test(&quot;atlas surface resources empty&quot;, () =&gt; {
+  const fullDoc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const resourceSection = fullDoc.split(&quot;## Resources — parte 4&quot;)[1];
+  assert.ok(resourceSection, &quot;resource section exists&quot;);
+  assert.match(resourceSection, /não publica resources/i);
+  assert.match(resourceSection, /megabrain call[\s\S]*?NAO le[\s\S]*?resources/i);
+  assert.match(resourceSection, /POST \/mcp.*Bearer/i);
+});
+
+test(&quot;atlas surface prompts empty&quot;, () =&gt; {
+  const fullDoc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const section = fullDoc.split(&quot;## Prompts — parte 5&quot;)[1];
+  assert.ok(section, &quot;prompts section exists&quot;);
+  assert.match(section, /não publica prompts/i);
+  assert.match(section, /megabrain call[\s\S]*?NAO executa[\s\S]*?prompts/i);
+  assert.match(section, /POST \/mcp.*Bearer/i);
+});
+
+test(&quot;atlas identity USER/ADMIN not six roles&quot;, () =&gt; {
+  const fullDoc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const section = fullDoc.split(&quot;## Identidade (substitui Roles)&quot;)[1].split(&quot;## Transportes e autenticação&quot;)[0];
+  assert.ok(section, &quot;identity section exists&quot;);
+  assert.match(section, /`USER`/);
+  assert.match(section, /`ADMIN`/);
+  assert.match(section, /zero providers\/models/);
+  assert.match(section, /n[ãa]o executa infer[êe]ncia/);
+  assert.doesNotMatch(section, /^- `mission_compiler` —/m);
+});
+
+test(&quot;atlas surface transports and authentication&quot;, () =&gt; {
+  const doc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const sec = doc.split(&quot;## Transportes e autenticação&quot;)[1];
+  assert.ok(sec, &quot;section Transportes e autenticação exists&quot;);
+  assert.match(sec, /Streamable HTTP[\s\S]*?POST \/mcp/);
+  assert.match(sec, /http:\/\/127\.0\.0\.1:20130\/mcp/);
+  assert.match(sec, /https:\/\/mcp\.atlascommand\.dev\/mcp/);
+  assert.match(sec, /sem `call_tool` in-process/);
+  for (const h of [&quot;Content-Type: application/json&quot;, &quot;Accept: application/json, text/event-stream&quot;, &quot;MCP-Protocol-Version: 2026-07-28&quot;, &quot;Mcp-Method&quot;, &quot;Mcp-Name&quot;]) {
+    assert.ok(sec.includes(h), `header ${h} missing`);
+  }
+  assert.match(sec, /Authorization: Bearer/);
+  for (const m of [&quot;io.modelcontextprotocol/protocolVersion&quot;, &quot;clientCapabilities&quot;, &quot;clientInfo&quot;]) {
+    assert.ok(sec.includes(m), `meta field ${m} missing`);
+  }
+  assert.ok(sec.includes(&quot;2026-07-28&quot;), &quot;must contain protocol version 2026-07-28&quot;);
+  for (const q of [&quot;?token=&quot;, &quot;?key=&quot;, &quot;?bearer=&quot;]) assert.ok(sec.includes(q), `query ${q} missing`);
+  assert.match(sec, /rejeitados com HTTP 401/);
+  assert.match(sec, /mb_user_session/);
+  assert.match(sec, /mb_admin_session/);
+  assert.match(sec, /n[ãa]o autenticam/);
+  const match = sec.match(/-d &#x27;(\{[\s\S]*?\})&#x27;/);
+  assert.ok(match, &quot;curl payload found&quot;);
+  const payload = JSON.parse(match[1]);
+  assert.strictEqual(payload.method, &quot;tools/list&quot;);
+  assert.strictEqual(payload.params?._meta?.[&quot;io.modelcontextprotocol/protocolVersion&quot;], &quot;2026-07-28&quot;);
+  assert.ok(payload.params?._meta?.[&quot;io.modelcontextprotocol/clientCapabilities&quot;]);
+  assert.ok(payload.params?._meta?.[&quot;io.modelcontextprotocol/clientInfo&quot;]);
+  const curlBlock = sec.match(/```bash\n([\s\S]*?)```/)?.[1] || &quot;&quot;;
+  assert.ok(curlBlock.includes(&quot;Bearer ${MEGABRAIN_TOKEN}&quot;));
+  assert.ok(!curlBlock.includes(&quot;MEG...KEN&quot;));
+  assert.ok(!curlBlock.includes(&quot;\\${&quot;));
+});
+
+test(&quot;atlas surface observability&quot;, () =&gt; {
+  const doc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const sec = doc.split(&quot;## Observabilidade&quot;)[1];
+  assert.ok(sec, &quot;observability section exists&quot;);
+  const section = sec.split(&quot;### Notificações de progresso&quot;)[0];
+  assert.match(section, /\/metrics/);
+  assert.match(section, /sem auth/);
+  assert.doesNotMatch(section, /auth obrigat[oó]ria/i);
+  for (const m of [
+    &quot;megabrain_tool_calls_total&quot;, &quot;megabrain_arm_calls_total&quot;, &quot;megabrain_errors_total&quot;,
+    &quot;megabrain_tool_errors_total&quot;, &quot;megabrain_tool_duration_seconds_bucket&quot;,
+    &quot;megabrain_tool_duration_seconds_sum&quot;, &quot;megabrain_tool_duration_seconds_count&quot;,
+    &quot;megabrain_tool_duration_seconds_total&quot;
+  ]) {
+    assert.ok(sec.includes(m), &quot;missing metric &quot; + m);
+  }
+  const jsonMatch = sec.match(/```json\n([\s\S]*?)\n```/);
+  assert.ok(jsonMatch, &quot;json progress notification exists&quot;);
+  const notif = JSON.parse(jsonMatch[1]);
+  assert.equal(notif.method, &quot;notifications/progress&quot;);
+  assert.equal(notif.id, undefined);
+  assert.ok(notif.params?.progressToken &amp;&amp; notif.params?.progress &amp;&amp; notif.params?.total &amp;&amp; notif.params?.message);
+  assert.match(sec, /progresso antes do resultado/);
+  for (const f of [&quot;total_calls&quot;, &quot;total_errors&quot;, &quot;tool_distribution&quot;, &quot;uptime_seconds&quot;]) {
+    assert.ok(sec.includes(f), &quot;missing field &quot; + f);
+  }
+  assert.match(sec, /Contadores vivos vs snapshot/);
+  assert.match(sec, /sem SLA sem medi[çc][ãa]o/);
+});
+
+test(&quot;atlas surface error contract&quot;, async () =&gt; {
+  const doc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const sec = doc.split(&quot;## Contrato de erro&quot;)[1];
+  assert.ok(sec, &quot;error contract section exists&quot;);
+  const codes = [
+    &quot;INVALID_ARGUMENT&quot;, &quot;INVALID_ENDPOINT&quot;, &quot;NO_EXECUTABLE_ROUTE&quot;, &quot;FALLBACK_NOT_SUPPORTED&quot;,
+    &quot;INSUFFICIENT_EVIDENCE&quot;, &quot;NOT_EXECUTED&quot;, &quot;NOT_DISPATCHED&quot;, &quot;UNAUTHORIZED_RELEASE&quot;,
+    &quot;MISSION_NOT_FOUND&quot;, &quot;EXECUTION_FAILURE&quot;, &quot;DEPENDENCY_BLOCKED&quot;, &quot;LOCK_ACQUISITION_FAILED&quot;, &quot;TIMEOUT_EXCEEDED&quot;
+  ];
+  for (const c of codes) assert.ok(sec.includes(c), &quot;missing code: &quot; + c);
+  assert.ok(sec.includes(&quot;^[A-Z][A-Z0-9_]{0,63}$&quot;));
+  assert.ok(sec.includes(&quot;TOOL_ERROR&quot;));
+  const ok = JSON.parse(sec.match(/\{&quot;status&quot;:&quot;completed&quot;\}/)[0]);
+  const err = JSON.parse(sec.match(/\{&quot;status&quot;:&quot;error&quot;,&quot;error_code&quot;:&quot;INVALID_ENDPOINT&quot;\}/)[0]);
+  assert.equal(ok.status, &quot;completed&quot;);
+  assert.equal(err.status, &quot;error&quot;);
+  assert.equal(err.error_code, &quot;INVALID_ENDPOINT&quot;);
+  const { isBusinessFailure } = await import(&quot;../src/commands/call.js&quot;);
+  assert.equal(isBusinessFailure({ isError: true }), true);
+  assert.equal(isBusinessFailure({ status: &quot;error&quot; }), true);
+  assert.equal(isBusinessFailure({ structuredContent: { status: &quot;error&quot; } }), true);
+  assert.equal(isBusinessFailure({ structuredContent: { error_code: &quot;EXECUTION_FAILURE&quot; } }), true);
+  assert.equal(isBusinessFailure({ content: [{ type: &quot;text&quot;, text: &quot;{\&quot;status\&quot;:\&quot;error\&quot;}&quot; }] }), true);
+  assert.equal(isBusinessFailure({ content: [{ type: &quot;text&quot;, text: &quot;{\&quot;error_code\&quot;:\&quot;TOOL_ERROR\&quot;}&quot; }] }), true);
+  assert.equal(isBusinessFailure({ status: &quot;completed&quot; }), false);
+  assert.equal(isBusinessFailure({ content: [{ type: &quot;text&quot;, text: &quot;Healthy plain text&quot; }] }), false);
+});
+
+test(&quot;test_mcp_surface_coverage_closure&quot;, async () =&gt; {
+  const { execSync } = await import(&quot;node:child_process&quot;);
+  assert.equal(CANONICAL.length, 27, &quot;27 tools no manifest canonical&quot;);
+  const files = fs.readdirSync(&quot;.&quot;, { recursive: true }).filter((f) =&gt; f.endsWith(&quot;.md&quot;) &amp;&amp; !f.includes(&quot;node_modules&quot;));
+  const regex = /megabrain call (atlas[._][a-z0-9_]+) &#x27;([^&#x27;]+)&#x27;/g;
+  const found = new Map();
+  for (const file of files) {
+    const text = fs.readFileSync(file, &quot;utf8&quot;);
+    for (const match of text.matchAll(regex)) {
+      const tool = match[1].replace(/^atlas_/, &quot;atlas.&quot;);
+      const parsed = JSON.parse(match[2]);
+      if (!found.has(tool)) found.set(tool, []);
+      found.get(tool).push(parsed);
+    }
+  }
+  for (const tool of CANONICAL) {
+    assert.ok(found.has(tool), &quot;tool ausente nos docs: &quot; + tool);
+  }
+  assert.equal(found.size, 27, &quot;27/27 presentes&quot;);
+  const kPath = process.env.MEGABRAIN_KERNEL_SOURCE || &quot;/srv/megabrain-dev/repository/runtime/atlas_mcp_server.py&quot;;
+  if (fs.existsSync(kPath)) {
+    const py = &#x27;python3 - &lt;&lt;PY\nimport ast, json, re\ntree = ast.parse(open(&quot;&#x27; + kPath + &#x27;&quot;).read())\nsigs = {}\nfor n in ast.walk(tree):\n    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith(&quot;atlas_&quot;):\n        sigs[n.name] = [a.arg for a in n.args.args if a.arg not in (&quot;self&quot;,)]\nprint(json.dumps(sigs))\nPY&#x27;;
+    const sigs = JSON.parse(execSync(py, { encoding: &quot;utf8&quot; }));
+    for (const tool of CANONICAL) {
+      const bare = &quot;atlas_&quot; + tool.replace(/^atlas\./, &quot;&quot;);
+      const allowed = sigs[bare];
+      assert.ok(allowed, &quot;assinatura ausente: &quot; + tool);
+      for (const ex of found.get(tool) || []) {
+        if (typeof ex === &quot;object&quot; &amp;&amp; ex !== null &amp;&amp; !Array.isArray(ex)) {
+          for (const key of Object.keys(ex)) {
+            if (tool === &quot;atlas.complete_upload&quot; &amp;&amp; [&quot;data_text&quot;, &quot;data_base64&quot;, &quot;data_hex&quot;].includes(key)) continue;
+            assert.ok(allowed.includes(key) || [&quot;data_text&quot;, &quot;data_base64&quot;, &quot;data_hex&quot;].includes(key), `chave ${key} nao permitida para ${tool}`);
+          }
+        }
+      }
+    }
+  }
+  const surfaceSkill = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  for (const topic of [&quot;resources&quot;, &quot;prompts&quot;, &quot;transports&quot;, &quot;metrics&quot;, &quot;errors&quot;]) {
+    assert.ok(new RegExp(topic, &quot;i&quot;).test(surfaceSkill), &quot;SKILL deve cobrir &quot; + topic);
+  }
+});
+</pre><!--/email_off--></main></body></html>

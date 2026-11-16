@@ -1,0 +1,208 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_endpoint.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_endpoint.test.js</h1><!--email_off--><pre>import fs from &quot;node:fs&quot;;
+import path from &quot;node:path&quot;;
+import os from &quot;node:os&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { test } from &quot;node:test&quot;;
+import { validateEndpoint, getEndpoint, setEndpoint, saveConfig, loadConfig } from &quot;../src/config.js&quot;;
+import { callTool } from &quot;../src/client.js&quot;;
+
+function withXdg(fn) {
+  const tmpdir = fs.mkdtempSync(path.join(os.tmpdir(), &quot;ep-&quot;));
+  const xdg = path.join(tmpdir, &quot;xdg&quot;);
+  fs.mkdirSync(xdg, { recursive: true });
+  const prev = process.env.XDG_CONFIG_HOME;
+  process.env.XDG_CONFIG_HOME = xdg;
+  try {
+    fn(xdg);
+  } finally {
+    process.env.XDG_CONFIG_HOME = prev;
+    fs.rmSync(tmpdir, { recursive: true, force: true });
+  }
+}
+
+test(&quot;EP_REJECT_TOKEN_QUERY: endpoint com ?token= e rejeitado&quot;, () =&gt; {
+  assert.throws(
+    () =&gt; validateEndpoint(&quot;https://mcp.atlascommand.dev/mcp?token=redacted&quot;),
+    /parametro de consulta sensivel nao permitido/
+  );
+});
+
+test(&quot;EP_REJECT_TOKEN_QUERY em env: env com ?token= nao substitui silenciosamente&quot;, () =&gt; {
+  withXdg(() =&gt; {
+    process.env.MEGABRAIN_ENDPOINT = &quot;https://mcp.atlascommand.dev/mcp?token=redacted&quot;;
+    try {
+      assert.throws(() =&gt; getEndpoint(), /parametro de consulta sensivel nao permitido/);
+    } finally {
+      delete process.env.MEGABRAIN_ENDPOINT;
+    }
+  });
+});
+
+test(&quot;EP_REJECT_USERINFO: endpoint com userinfo e rejeitado&quot;, () =&gt; {
+  assert.throws(
+    () =&gt; validateEndpoint(&quot;https://user:pass@mcp.atlascommand.dev/mcp&quot;),
+    /credenciais.*userinfo/
+  );
+});
+
+test(&quot;EP_REJECT_KEY_QUERY: endpoint com ?key= e rejeitado&quot;, () =&gt; {
+  assert.throws(
+    () =&gt; validateEndpoint(&quot;https://mcp.atlascommand.dev/mcp?key=redacted&quot;),
+    /parametro de consulta sensivel nao permitido/
+  );
+});
+
+test(&quot;EP_REJECT_BEARER_QUERY: endpoint com ?bearer= e rejeitado&quot;, () =&gt; {
+  assert.throws(
+    () =&gt; validateEndpoint(&quot;https://mcp.atlascommand.dev/mcp?bearer=redacted&quot;),
+    /parametro de consulta sensivel nao permitido/
+  );
+});
+
+test(&quot;EP_REJECT_JS_PROTOCOL: esquema javascript: e rejeitado&quot;, () =&gt; {
+  assert.throws(() =&gt; validateEndpoint(&quot;javascript:alert(1)&quot;), /protocolo nao permitido/);
+});
+
+test(&quot;EP_REJECT_FILE_PROTOCOL: esquema file: e rejeitado&quot;, () =&gt; {
+  assert.throws(() =&gt; validateEndpoint(&quot;file:///etc/passwd&quot;), /protocolo nao permitido/);
+});
+
+test(&quot;EP_REJECT_MALFORMED: URL malformada e rejeitada&quot;, () =&gt; {
+  assert.throws(() =&gt; validateEndpoint(&quot;nao-e-url&quot;), /URL malformada/);
+});
+
+test(&quot;EP_REJECT_EMPTY: valor vazio e rejeitado&quot;, () =&gt; {
+  assert.throws(() =&gt; validateEndpoint(&quot;&quot;), /valor ausente/);
+});
+
+test(&quot;EP_OK_HTTPS: https publico e aceito&quot;, () =&gt; {
+  assert.equal(
+    validateEndpoint(&quot;https://mcp.atlascommand.dev/mcp&quot;),
+    &quot;https://mcp.atlascommand.dev/mcp&quot;
+  );
+});
+
+test(&quot;EP_OK_HTTPS: https publico com query nao sensivel e aceito&quot;, () =&gt; {
+  assert.equal(
+    validateEndpoint(&quot;https://mcp.atlascommand.dev/mcp?session=abc&quot;),
+    &quot;https://mcp.atlascommand.dev/mcp?session=abc&quot;
+  );
+});
+
+test(&quot;EP_OK_HTTP_LOOPBACK: http loopback e aceito&quot;, () =&gt; {
+  assert.equal(
+    validateEndpoint(&quot;http://127.0.0.1:9000/mcp&quot;),
+    &quot;http://127.0.0.1:9000/mcp&quot;
+  );
+  assert.equal(
+    validateEndpoint(&quot;http://localhost:9000/mcp&quot;),
+    &quot;http://localhost:9000/mcp&quot;
+  );
+});
+
+test(&quot;EP_ENV_INVALID_NOT_SILENT: env invalido lanca erro em vez de cair no default&quot;, () =&gt; {
+  withXdg(() =&gt; {
+    process.env.MEGABRAIN_ENDPOINT = &quot;javascript:alert(1)&quot;;
+    let erro = null;
+    try {
+      getEndpoint();
+    } catch (e) {
+      erro = e;
+    } finally {
+      delete process.env.MEGABRAIN_ENDPOINT;
+    }
+    assert.ok(erro, &quot;getEndpoint deve lancar erro com env invalido&quot;);
+    assert.match(erro.message, /protocolo nao permitido/);
+  });
+});
+
+test(&quot;EP_ENV_INVALID_NOT_SILENT: env invalido com token em query lanca erro&quot;, () =&gt; {
+  withXdg(() =&gt; {
+    process.env.MEGABRAIN_ENDPOINT = &quot;https://mcp.atlascommand.dev/mcp?token=redacted&quot;;
+    let erro = null;
+    try {
+      getEndpoint();
+    } catch (e) {
+      erro = e;
+    } finally {
+      delete process.env.MEGABRAIN_ENDPOINT;
+    }
+    assert.ok(erro, &quot;getEndpoint deve lancar erro com env invalido&quot;);
+    assert.match(erro.message, /parametro de consulta sensivel nao permitido/);
+  });
+});
+
+test(&quot;EP_SAVE_REJECT_INVALID: setEndpoint rejeita antes de persistir&quot;, () =&gt; {
+  withXdg(() =&gt; {
+    assert.throws(
+      () =&gt; setEndpoint(&quot;https://user:pass@mcp.atlascommand.dev/mcp&quot;),
+      /credenciais.*userinfo/
+    );
+    assert.equal(loadConfig().endpoint, undefined, &quot;endpoint invalido nao pode ser persistido&quot;);
+  });
+});
+
+test(&quot;EP_SAVE_REJECT_INVALID: saveConfig rejeita endpoint invalido&quot;, () =&gt; {
+  withXdg(() =&gt; {
+    assert.throws(
+      () =&gt; saveConfig({ endpoint: &quot;https://mcp.atlascommand.dev/mcp?token=redacted&quot; }),
+      /parametro de consulta sensivel nao permitido/
+    );
+    assert.equal(loadConfig().endpoint, undefined, &quot;endpoint invalido nao pode ser persistido&quot;);
+  });
+});
+
+test(&quot;EP_SAVE_OK_PERMISSIONS: save valido usa dir 0700 e file 0600&quot;, () =&gt; {
+  withXdg((xdg) =&gt; {
+    setEndpoint(&quot;https://mcp.atlascommand.dev/mcp&quot;);
+    const configFile = path.join(xdg, &quot;megabrain&quot;, &quot;credentials.json&quot;);
+    const dirMode = fs.statSync(path.dirname(configFile)).mode &amp; 0o777;
+    const fileMode = fs.statSync(configFile).mode &amp; 0o777;
+    assert.equal(dirMode, 0o700, `dir mode ${dirMode.toString(8)} != 0700`);
+    assert.equal(fileMode, 0o600, `file mode ${fileMode.toString(8)} != 0600`);
+    const saved = JSON.parse(fs.readFileSync(configFile, &quot;utf8&quot;));
+    assert.equal(saved.endpoint, &quot;https://mcp.atlascommand.dev/mcp&quot;);
+    assert.equal(getEndpoint(), &quot;https://mcp.atlascommand.dev/mcp&quot;);
+  });
+});
+
+test(&quot;EP_ENV_EMPTY_FALLS_BACK: MEGABRAIN_ENDPOINT vazio cai no default&quot;, () =&gt; {
+  withXdg(() =&gt; {
+    process.env.MEGABRAIN_ENDPOINT = &quot;&quot;;
+    try {
+      assert.equal(getEndpoint(), &quot;https://mcp.atlascommand.dev/mcp&quot;);
+    } finally {
+      delete process.env.MEGABRAIN_ENDPOINT;
+    }
+  });
+});
+
+test(&quot;EP_STORED_EMPTY_FAILS: endpoint persistido vazio nao cai no default&quot;, () =&gt; {
+  withXdg((xdg) =&gt; {
+    const dir = path.join(xdg, &quot;megabrain&quot;);
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(path.join(dir, &quot;credentials.json&quot;), JSON.stringify({ endpoint: &quot;&quot; }) + &quot;\n&quot;, { mode: 0o600 });
+    assert.throws(() =&gt; getEndpoint(), /valor ausente/);
+  });
+});
+
+test(&quot;EP_SENDRPC_REJECT_BEFORE_FETCH&quot;, async () =&gt; {
+  let called = false, err;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = () =&gt; { called = true; throw new Error(&quot;fetch called&quot;); };
+  try {
+    try {
+      await callTool(&quot;atlas.health&quot;, {}, { endpoint: &quot;https://user:pass@mcp.example.test/mcp?token=super-secret&quot;, token: &quot;tok&quot; });
+    } catch (e) { err = e; }
+    await assert.rejects(
+      () =&gt; callTool(&quot;atlas.health&quot;, {}, { endpoint: &quot;https://user:pass@mcp.example.test/mcp?token=super-secret&quot;, token: &quot;tok&quot; }),
+      /userinfo|consulta sensivel/
+    );
+    assert.equal(called, false);
+    assert.ok(!err.message.includes(&quot;super-secret&quot;));
+    assert.ok(!err.message.includes(&quot;tok&quot;));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+</pre><!--/email_off--></main></body></html>

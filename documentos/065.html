@@ -1,0 +1,51 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_wcag_argv.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_wcag_argv.test.js</h1><!--email_off--><pre>import test from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { spawnSync } from &#x27;node:child_process&#x27;;
+import { mkdtempSync, writeFileSync, rmSync } from &#x27;node:fs&#x27;;
+import { tmpdir } from &#x27;node:os&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { checkWcag } from &#x27;../scripts/wcag_check.js&#x27;;
+
+const SCRIPT = fileURLToPath(new URL(&#x27;../scripts/wcag_check.js&#x27;, import.meta.url));
+const run = (args) =&gt; spawnSync(process.execPath, [SCRIPT, ...args], { encoding: &#x27;utf8&#x27; });
+
+test(&#x27;wcag argv grammar: equivalence, unknown flags, separated values, help, and json&#x27;, () =&gt; {
+  // ponytail: minimal subprocess runner covering argv grammar contract
+  assert.equal(checkWcag({ fg: &#x27;#000000&#x27;, bg: &#x27;#ffffff&#x27; }).valid, true);
+
+  const eq = run([&#x27;--fg=#000&#x27;, &#x27;--bg=#fff&#x27;, &#x27;--width=48&#x27;, &#x27;--json&#x27;]);
+  const sep = run([&#x27;--fg&#x27;, &#x27;#000&#x27;, &#x27;--bg&#x27;, &#x27;#fff&#x27;, &#x27;--width&#x27;, &#x27;48&#x27;, &#x27;--json&#x27;]);
+  assert.equal(eq.status, 0);
+  assert.equal(sep.status, 0);
+  assert.deepEqual(JSON.parse(eq.stdout), JSON.parse(sep.stdout));
+
+  for (const flag of [[&#x27;--foreground=#fff&#x27;], [&#x27;--background&#x27;, &#x27;#fff&#x27;], [&#x27;--typo&#x27;], [&#x27;-x&#x27;]]) {
+    assert.notEqual(run(flag).status, 0);
+  }
+
+  const noFile = run([&#x27;--fg&#x27;, &#x27;#000&#x27;, &#x27;--json&#x27;]);
+  assert.equal(noFile.status, 0);
+
+  const bad = [[&#x27;--fg&#x27;], [&#x27;--fg=&#x27;], [&#x27;--fg&#x27;, &#x27;&quot;&quot;&#x27;], [&#x27;--fg&#x27;, &#x27;--bg&#x27;, &#x27;#fff&#x27;], [&#x27;a.json&#x27;, &#x27;b.json&#x27;], [&#x27;a.json&#x27;, &#x27;--fg&#x27;, &#x27;#000&#x27;], [&#x27;--fg&#x27;, &#x27;#0&#x27;, &#x27;--fg&#x27;, &#x27;#1&#x27;]];
+  for (const b of bad) {
+    assert.notEqual(run(b).status, 0);
+  }
+
+  const help = run([&#x27;--help&#x27;]);
+  const helpFile = run([&#x27;-h&#x27;, &#x27;missing.json&#x27;]);
+  assert.equal(help.status, 0);
+  assert.equal(helpFile.status, 0);
+  assert.match(help.stdout, /Usage:/);
+
+  const tmpDir = mkdtempSync(`${tmpdir()}/wcag-`);
+  const tmpFile = `${tmpDir}/test.json`;
+  try {
+    writeFileSync(tmpFile, JSON.stringify({ fg: &#x27;#000000&#x27;, bg: &#x27;#ffffff&#x27;, width: 44, height: 44 }));
+    const fRes = run([tmpFile, &#x27;--json&#x27;]);
+    assert.equal(fRes.status, 0);
+    assert.equal(JSON.parse(fRes.stdout).valid, true);
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+</pre><!--/email_off--></main></body></html>

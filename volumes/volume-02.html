@@ -1,0 +1,2142 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Volume 02 — leitura integral</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>Volume 02 — leitura integral</h1><!--email_off--><section><h2>src/commands/setup.js</h2><pre>import fs from &quot;node:fs&quot;;
+import path from &quot;node:path&quot;;
+import os from &quot;node:os&quot;;
+import { fileURLToPath } from &quot;node:url&quot;;
+import { checkHealth, listTools } from &quot;../client.js&quot;;
+import { getEndpoint, getToken, validateEndpoint } from &quot;../config.js&quot;;
+
+const SKILLS = [
+  &quot;megabrain-orchestrate&quot;,
+  &quot;megabrain-pipeline&quot;,
+  &quot;megabrain-review&quot;,
+  &quot;megabrain-audit&quot;,
+  &quot;megabrain-context&quot;,
+  &quot;megabrain-ui&quot;,
+  &quot;megabrain-surface&quot;
+];
+
+// ponytail: synchronous copy and unary probe; upgrade to async workers when syncing &gt;50 skills
+export async function run({ positionals = [], flags = {} } = {}) {
+  if (flags?.help) {
+    console.log(&quot;Usage: megabrain setup [--dest &lt;path&gt;] [--endpoint &lt;url&gt;] [--json]&quot;);
+    return;
+  }
+
+  const endpoint = flags?.endpoint || getEndpoint();
+  validateEndpoint(endpoint);
+  const token = getToken();
+  const rootDir = fileURLToPath(new URL(&quot;../../&quot;, import.meta.url));
+  const destArg = typeof flags?.dest === &quot;string&quot; ? flags.dest : (positionals[0] || null);
+  const destDir = destArg || path.join(process.cwd(), &quot;.agents&quot;, &quot;skills&quot;);
+
+  fs.mkdirSync(destDir, { recursive: true });
+  const installed = [];
+  for (const item of [...SKILLS, &quot;scripts&quot;]) {
+    const src = path.join(rootDir, item);
+    if (fs.existsSync(src)) {
+      fs.cpSync(src, path.join(destDir, item), { recursive: true });
+      installed.push(item);
+    }
+  }
+
+  const harnesses = [];
+  const cursorDir = path.join(process.cwd(), &quot;.cursor&quot;);
+  if (fs.existsSync(cursorDir)) {
+    harnesses.push(&quot;.cursor&quot;);
+    const rulesDir = path.join(cursorDir, &quot;rules&quot;);
+    fs.mkdirSync(rulesDir, { recursive: true });
+    const rulePath = path.join(rulesDir, &quot;megabrain.mdc&quot;);
+    if (!fs.existsSync(rulePath)) fs.writeFileSync(rulePath, &quot;# Atlas Rules\nUse Atlas MCP tools (atlas.*).\n&quot;);
+  }
+  if (fs.existsSync(path.join(process.cwd(), &quot;.vscode&quot;))) harnesses.push(&quot;.vscode&quot;);
+  if (fs.existsSync(path.join(os.homedir(), &quot;.hermes&quot;))) harnesses.push(&quot;.hermes&quot;);
+
+  const mcpConfig = {
+    mcpServers: {
+      atlas: {
+        url: endpoint,
+        headers: token ? { Authorization: &quot;Bearer ${MEGABRAIN_TOKEN}&quot; } : {}
+      }
+    }
+  };
+  if (flags?.[&quot;write-mcp&quot;] || flags?.writeMcp) fs.writeFileSync(path.join(destDir, &quot;megabrain.mcp.json&quot;), JSON.stringify(mcpConfig, null, 2) + &quot;\n&quot;);
+
+  const nodeMajor = parseInt(process.versions.node.split(&quot;.&quot;)[0], 10);
+  const nodeOk = nodeMajor &gt;= 18;
+
+  function healthReady(health) {
+    const rawStatus = typeof health?.status === &quot;string&quot; ? health.status.toUpperCase() : &quot;&quot;;
+    return Boolean(health) &amp;&amp; !health.isError &amp;&amp; health.ready !== false &amp;&amp; health.kernel_ready !== false &amp;&amp; health.ok !== false &amp;&amp;
+      ([&quot;READY&quot;, &quot;HEALTHY&quot;, &quot;OK&quot;].includes(rawStatus) || (rawStatus === &quot;&quot; &amp;&amp; (health.ready === true || health.ok === true)));
+  }
+
+  const explicitToken = flags?.token || process.env.MEGABRAIN_TOKEN;
+  let connected = false;
+  const start = Date.now();
+  try {
+    const health = await checkHealth({ endpoint, token: explicitToken, signal: AbortSignal.timeout(3000) });
+    connected = healthReady(health);
+    if (connected &amp;&amp; explicitToken) await listTools({ endpoint, token: explicitToken, signal: AbortSignal.timeout(3000) });
+  } catch {
+    connected = false;
+  }
+  const latencyMs = Date.now() - start;
+
+  const report = {
+    status: nodeOk &amp;&amp; connected ? &quot;ok&quot; : &quot;degraded&quot;,
+    prerequisites: { node: { version: process.version, valid: nodeOk } },
+    connectivity: { endpoint, connected, latencyMs },
+    installation: { destination: destDir, installed },
+    harnesses,
+    mcpConfig
+  };
+
+  if (flags?.json) {
+    console.log(JSON.stringify(report));
+  } else {
+    console.log(`MegaBrain Setup: ${report.status.toUpperCase()}`);
+    console.log(`- Node.js: ${process.version} (${nodeOk ? &quot;OK&quot; : &quot;Requires &gt;= 18&quot;})`);
+    console.log(`- Connectivity: ${connected ? &quot;Connected&quot; : &quot;Offline&quot;} (${latencyMs}ms) to ${endpoint}`);
+    console.log(`- Installed ${installed.length} items to ${destDir}`);
+    if (harnesses.length) console.log(`- Harnesses: ${harnesses.join(&quot;, &quot;)}`);
+  }
+  if (report.status !== &quot;ok&quot;) process.exitCode = 1;
+  return report;
+}
+</pre></section><section><h2>src/commands/status.js</h2><pre>import { checkHealth, listTools } from &quot;../client.js&quot;;
+import { getEndpoint } from &quot;../config.js&quot;;
+
+// ponytail: unary health ping; upgrade to full telemetry snapshot when dashboard ready
+export async function run({ flags = {} }) {
+  const endpoint = flags.endpoint || getEndpoint();
+  const explicitToken = flags.token || process.env.MEGABRAIN_TOKEN;
+  const health = await checkHealth({ endpoint, token: explicitToken });
+  const rawStatus = typeof health?.status === &quot;string&quot; ? health.status.toUpperCase() : &quot;&quot;;
+  let isOk = Boolean(health) &amp;&amp; !health.isError &amp;&amp; health.ready !== false &amp;&amp; health.kernel_ready !== false &amp;&amp; health.ok !== false &amp;&amp;
+    ([&quot;READY&quot;, &quot;HEALTHY&quot;, &quot;OK&quot;].includes(rawStatus) || (rawStatus === &quot;&quot; &amp;&amp; (health.ready === true || health.ok === true)));
+  if (isOk &amp;&amp; explicitToken) {
+    try { await listTools({ endpoint, token: explicitToken }); } catch { isOk = false; }
+  }
+  if (!isOk) process.exitCode = 1;
+  const status = isOk
+    ? (health?.status || &quot;ok&quot;)
+    : ([&quot;ERROR&quot;, &quot;DEGRADED&quot;, &quot;NOT_READY&quot;].includes(rawStatus) ? health.status : (health?.ready === false ? &quot;not_ready&quot; : &quot;error&quot;));
+  const out = { endpoint, status, health };
+  if (flags.json) {
+    console.log(JSON.stringify(out));
+  } else {
+    console.log(`Endpoint: ${endpoint}\nStatus: ${out.status}`);
+  }
+  return out;
+}
+</pre></section><section><h2>src/config.js</h2><pre>import fs from &quot;node:fs&quot;;
+import path from &quot;node:path&quot;;
+import os from &quot;node:os&quot;;
+
+// ponytail: sync fs operations for CLI config; upgrade to async if integrated into high-concurrency daemon
+export function getConfigDir() {
+  return process.env.XDG_CONFIG_HOME
+    ? path.join(process.env.XDG_CONFIG_HOME, &quot;megabrain&quot;)
+    : path.join(os.homedir(), &quot;.config&quot;, &quot;megabrain&quot;);
+}
+
+export function getConfigFile() {
+  return path.join(getConfigDir(), &quot;credentials.json&quot;);
+}
+
+export function loadConfig() {
+  try {
+    const file = getConfigFile();
+    if (!fs.existsSync(file)) return {};
+    return JSON.parse(fs.readFileSync(file, &quot;utf8&quot;));
+  } catch {
+    return {};
+  }
+}
+
+const DEFAULT_ENDPOINT = &quot;https://mcp.atlascommand.dev/mcp&quot;;
+const SENSITIVE_QUERY_KEY = /token|key|bearer/i;
+
+// ponytail: rejeita esquemas nao http(s), userinfo e query sensivel; upgrade to allowlist se endpoints legit precisarem query.
+export function validateEndpoint(endpoint) {
+  if (typeof endpoint !== &quot;string&quot; || endpoint.trim() === &quot;&quot;) {
+    throw new Error(&quot;Endpoint invalido: valor ausente&quot;);
+  }
+  let url;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    throw new Error(&quot;Endpoint invalido: URL malformada&quot;);
+  }
+  if (url.protocol !== &quot;https:&quot; &amp;&amp; url.protocol !== &quot;http:&quot;) {
+    throw new Error(`Endpoint invalido: protocolo nao permitido (${url.protocol})`);
+  }
+  if (!url.hostname) throw new Error(&quot;Endpoint invalido: host ausente&quot;);
+  if (url.username || url.password) {
+    throw new Error(&quot;Endpoint invalido: credenciais (userinfo) nao permitidas&quot;);
+  }
+  for (const key of url.searchParams.keys()) {
+    if (SENSITIVE_QUERY_KEY.test(key)) {
+      throw new Error(&quot;Endpoint invalido: parametro de consulta sensivel nao permitido&quot;);
+    }
+  }
+  return endpoint;
+}
+
+export function saveConfig(data) {
+  const dir = getConfigDir();
+  const file = getConfigFile();
+  const current = loadConfig();
+  const merged = { ...current, ...data };
+  if (merged.endpoint !== undefined &amp;&amp; merged.endpoint !== null) {
+    merged.endpoint = validateEndpoint(merged.endpoint);
+  }
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  fs.chmodSync(dir, 0o700);
+  const tmp = `${file}.tmp.${process.pid}.${Date.now()}`;
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(merged, null, 2) + &quot;\n&quot;, { mode: 0o600 });
+    fs.chmodSync(tmp, 0o600);
+    fs.renameSync(tmp, file);
+  } finally {
+    try { fs.rmSync(tmp, { force: true }); } catch {}
+  }
+  fs.chmodSync(file, 0o600);
+}
+
+export function getToken() {
+  return process.env.MEGABRAIN_TOKEN || loadConfig().token || null;
+}
+
+export function setToken(token) {
+  saveConfig({ token });
+}
+
+export function getEndpoint() {
+  const envEndpoint = process.env.MEGABRAIN_ENDPOINT;
+  if (typeof envEndpoint === &quot;string&quot; &amp;&amp; envEndpoint.trim()) return validateEndpoint(envEndpoint);
+  const stored = loadConfig().endpoint;
+  if (stored !== undefined &amp;&amp; stored !== null) {
+    return validateEndpoint(stored);
+  }
+  return DEFAULT_ENDPOINT;
+}
+
+export function setEndpoint(endpoint) {
+  saveConfig({ endpoint: validateEndpoint(endpoint) });
+}
+</pre></section><section><h2>tests/cli_auth.test.js</h2><pre>import test from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { spawn } from &#x27;node:child_process&#x27;;
+import fs from &#x27;node:fs&#x27;;
+import path from &#x27;node:path&#x27;;
+import os from &#x27;node:os&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import http from &#x27;node:http&#x27;;
+
+const repoRoot = fileURLToPath(new URL(&#x27;..&#x27;, import.meta.url));
+const binPath = path.join(repoRoot, &#x27;bin&#x27;, &#x27;megabrain.js&#x27;);
+const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, &#x27;package.json&#x27;), &#x27;utf8&#x27;));
+
+function runCliAsync(args, envOverrides = {}) {
+  return new Promise((resolve) =&gt; {
+    const env = { ...process.env, ...envOverrides };
+    const child = spawn(process.execPath, [binPath, ...args], { env });
+    let stdout = &#x27;&#x27;;
+    let stderr = &#x27;&#x27;;
+    child.stdout.on(&#x27;data&#x27;, d =&gt; { stdout += d; });
+    child.stderr.on(&#x27;data&#x27;, d =&gt; { stderr += d; });
+    child.on(&#x27;close&#x27;, (code) =&gt; {
+      resolve({ status: code, stdout, stderr });
+    });
+  });
+}
+
+test(&#x27;1. Permissoes de arquivo credentials.json (0600) e diretorio (0700)&#x27;, async () =&gt; {
+  const tmpDir = path.join(os.tmpdir(), `mb-perm-${Date.now()}`);
+  const prevXdg = process.env.XDG_CONFIG_HOME;
+  process.env.XDG_CONFIG_HOME = tmpDir;
+
+  try {
+    const { saveConfig, loadConfig, getConfigDir, getConfigFile } = await import(`../src/config.js?t=${Date.now()}`);
+
+    saveConfig({ token: &#x27;initial-token&#x27;, endpoint: &#x27;http://example.com/mcp&#x27; });
+
+    const dir = getConfigDir();
+    const file = getConfigFile();
+
+    assert.ok(fs.existsSync(dir), &#x27;Config directory exists&#x27;);
+    assert.ok(fs.existsSync(file), &#x27;Credentials file exists&#x27;);
+
+    const dirMode = fs.statSync(dir).mode &amp; 0o777;
+    const fileMode = fs.statSync(file).mode &amp; 0o777;
+
+    assert.equal(dirMode.toString(8), &#x27;700&#x27;, &#x27;Directory permissions must be 0700&#x27;);
+    assert.equal(fileMode.toString(8), &#x27;600&#x27;, &#x27;File permissions must be 0600&#x27;);
+
+    // Testar correcao de permissoes
+    fs.chmodSync(dir, 0o755);
+    fs.chmodSync(file, 0o644);
+
+    saveConfig({ updated: true });
+    assert.equal((fs.statSync(dir).mode &amp; 0o777).toString(8), &#x27;700&#x27;, &#x27;Directory re-enforced to 0700&#x27;);
+    assert.equal((fs.statSync(file).mode &amp; 0o777).toString(8), &#x27;600&#x27;, &#x27;File re-enforced to 0600&#x27;);
+
+    const loaded = loadConfig();
+    assert.equal(loaded.token, &#x27;initial-token&#x27;);
+    assert.equal(loaded.updated, true);
+  } finally {
+    if (prevXdg !== undefined) process.env.XDG_CONFIG_HOME = prevXdg;
+    else delete process.env.XDG_CONFIG_HOME;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test(&#x27;2. Chamadas de bin/megabrain.js com --version, --help, status --json, call atlas.health&#x27;, async () =&gt; {
+  // --version, -v, version
+  const v1 = await runCliAsync([&#x27;--version&#x27;]);
+  assert.equal(v1.status, 0);
+  assert.equal(v1.stdout.trim(), pkg.version);
+
+  const v2 = await runCliAsync([&#x27;-v&#x27;]);
+  assert.equal(v2.status, 0);
+  assert.equal(v2.stdout.trim(), pkg.version);
+
+  const v3 = await runCliAsync([&#x27;version&#x27;]);
+  assert.equal(v3.status, 0);
+  assert.equal(v3.stdout.trim(), pkg.version);
+
+  // --help, -h, help, no args
+  const h1 = await runCliAsync([&#x27;--help&#x27;]);
+  assert.equal(h1.status, 0);
+  assert.match(h1.stdout, /MegaBrain CLI/);
+
+  const h2 = await runCliAsync([&#x27;-h&#x27;]);
+  assert.equal(h2.status, 0);
+  assert.match(h2.stdout, /Usage:/);
+
+  const h3 = await runCliAsync([&#x27;help&#x27;]);
+  assert.equal(h3.status, 0);
+  assert.match(h3.stdout, /Commands:/);
+
+  const h4 = await runCliAsync([]);
+  assert.equal(h4.status, 0);
+  assert.match(h4.stdout, /Commands:/);
+
+  // Mock server para status e call
+  const server = http.createServer((req, res) =&gt; {
+    if (req.url === &#x27;/health&#x27;) {
+      res.writeHead(200, { &#x27;Content-Type&#x27;: &#x27;application/json&#x27; });
+      res.end(JSON.stringify({ status: &#x27;HEALTHY&#x27;, mock: true }));
+      return;
+    }
+    if (req.url === &#x27;/mcp&#x27;) {
+      let body = &#x27;&#x27;;
+      req.on(&#x27;data&#x27;, chunk =&gt; { body += chunk; });
+      req.on(&#x27;end&#x27;, () =&gt; {
+        const payload = JSON.parse(body);
+        res.writeHead(200, { &#x27;Content-Type&#x27;: &#x27;application/json&#x27; });
+        res.end(JSON.stringify({
+          jsonrpc: &#x27;2.0&#x27;,
+          id: payload.id,
+          result: { tool: payload.params?.name, status: &#x27;ok&#x27;, receivedAuth: req.headers.authorization }
+        }));
+      });
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  await new Promise(r =&gt; server.listen(0, &#x27;127.0.0.1&#x27;, r));
+  const port = server.address().port;
+  const mockEndpoint = `http://127.0.0.1:${port}/mcp`;
+  const fbCalls = [];
+  const fbServer = http.createServer((req, res) =&gt; {
+    if (req.url !== &#x27;/mcp&#x27;) { res.writeHead(404); res.end(); return; }
+    let body = &#x27;&#x27;;
+    req.on(&#x27;data&#x27;, c =&gt; { body += c; });
+    req.on(&#x27;end&#x27;, () =&gt; {
+      const p = JSON.parse(body);
+      fbCalls.push({ tool: p.params?.name, auth: req.headers.authorization });
+      res.writeHead(200, { &#x27;Content-Type&#x27;: &#x27;application/json&#x27; });
+      res.end(JSON.stringify({ jsonrpc: &#x27;2.0&#x27;, id: p.id, result: { tool: p.params?.name, status: &#x27;ok&#x27;, receivedAuth: req.headers.authorization } }));
+    });
+  });
+  await new Promise(r =&gt; fbServer.listen(0, &#x27;127.0.0.1&#x27;, r));
+  const fbEndpoint = `http://127.0.0.1:${fbServer.address().port}/mcp`;
+
+  try {
+    const sRes = await runCliAsync([&#x27;status&#x27;, &#x27;--json&#x27;, &#x27;--endpoint&#x27;, mockEndpoint]);
+    assert.equal(sRes.status, 0);
+    const parsedStatus = JSON.parse(sRes.stdout);
+    assert.equal(parsedStatus.endpoint, mockEndpoint);
+    assert.equal(parsedStatus.status, &#x27;HEALTHY&#x27;);
+    assert.equal(parsedStatus.health.mock, true);
+
+    const fRes = await runCliAsync([&#x27;status&#x27;, &#x27;--json&#x27;, &#x27;--endpoint&#x27;, fbEndpoint], { MEGABRAIN_TOKEN: &#x27;secret-agent-token&#x27; });
+    assert.equal(fRes.status, 0);
+    JSON.parse(fRes.stdout);
+    const healthCall = fbCalls.find(c =&gt; c.tool === &#x27;atlas.health&#x27;);
+    assert.ok(healthCall, &#x27;fallback must call canonical atlas.health&#x27;);
+    assert.equal(healthCall.auth, &#x27;Bearer secret-agent-token&#x27;);
+
+    const cRes = await runCliAsync([
+      &#x27;call&#x27;, &#x27;atlas.health&#x27;, &#x27;{}&#x27;,
+      &#x27;--endpoint&#x27;, mockEndpoint,
+      &#x27;--json&#x27;
+    ], { MEGABRAIN_TOKEN: &#x27;secret-agent-token&#x27; });
+    assert.equal(cRes.status, 0);
+    const parsedCall = JSON.parse(cRes.stdout);
+    assert.equal(parsedCall.tool, &#x27;atlas.health&#x27;);
+    assert.equal(parsedCall.status, &#x27;ok&#x27;);
+    assert.equal(parsedCall.receivedAuth, &#x27;Bearer secret-agent-token&#x27;);
+  } finally {
+    server.close();
+    fbServer.close();
+  }
+});
+
+test(&#x27;3. Fallback e prioridade de variaveis de ambiente MEGABRAIN_TOKEN e MEGABRAIN_ENDPOINT&#x27;, async () =&gt; {
+  const tmpDir = path.join(os.tmpdir(), `mb-prio-${Date.now()}`);
+  const cDir = path.join(tmpDir, &#x27;megabrain&#x27;);
+  fs.mkdirSync(cDir, { recursive: true });
+
+  let lastAuth = null;
+  const server = http.createServer((req, res) =&gt; {
+    lastAuth = req.headers.authorization || null;
+    if (req.url === &#x27;/health&#x27;) {
+      res.writeHead(200, { &#x27;Content-Type&#x27;: &#x27;application/json&#x27; });
+      res.end(JSON.stringify({ status: &#x27;HEALTHY&#x27; }));
+      return;
+    }
+    let body = &#x27;&#x27;;
+    req.on(&#x27;data&#x27;, chunk =&gt; { body += chunk; });
+    req.on(&#x27;end&#x27;, () =&gt; {
+      const payload = body ? JSON.parse(body) : {};
+      res.writeHead(200, { &#x27;Content-Type&#x27;: &#x27;application/json&#x27; });
+      res.end(JSON.stringify({ jsonrpc: &#x27;2.0&#x27;, id: payload.id || 1, result: { auth: lastAuth } }));
+    });
+  });
+
+  await new Promise(r =&gt; server.listen(0, &#x27;127.0.0.1&#x27;, r));
+  const port = server.address().port;
+  const mockEndpoint = `http://127.0.0.1:${port}/mcp`;
+
+  const fileEndpoint = mockEndpoint;
+  const fileToken = &#x27;token-from-credentials-file&#x27;;
+
+  fs.writeFileSync(
+    path.join(cDir, &#x27;credentials.json&#x27;),
+    JSON.stringify({ endpoint: fileEndpoint, token: fileToken }, null, 2),
+    { mode: 0o600 }
+  );
+
+  const envDefaults = {
+    XDG_CONFIG_HOME: tmpDir,
+    MEGABRAIN_ENDPOINT: &#x27;&#x27;,
+    MEGABRAIN_TOKEN: &#x27;&#x27;,
+  };
+
+  try {
+    // 3a. Prioridade de Endpoint:
+    // Caso 1: Apenas arquivo configurado -&gt; deve usar fileEndpoint
+    const s1 = await runCliAsync([&#x27;status&#x27;, &#x27;--json&#x27;], {
+      ...envDefaults,
+      MEGABRAIN_ENDPOINT: &#x27;&#x27;,
+      MEGABRAIN_TOKEN: &#x27;&#x27;,
+    });
+    assert.equal(s1.status, 0);
+    const p1 = JSON.parse(s1.stdout || &#x27;{}&#x27;);
+    assert.equal(p1.endpoint, fileEndpoint, &#x27;Fallback to credentials.json endpoint when no env or flag&#x27;);
+
+    // Caso 2: Env var setada -&gt; deve sobrepor arquivo
+    const envEndpoint = `http://127.0.0.1:${port}/env-mcp`;
+    const s2 = await runCliAsync([&#x27;status&#x27;, &#x27;--json&#x27;], {
+      ...envDefaults,
+      MEGABRAIN_ENDPOINT: envEndpoint,
+    });
+    assert.equal(s2.status, 0);
+    const p2 = JSON.parse(s2.stdout || &#x27;{}&#x27;);
+    assert.equal(p2.endpoint, envEndpoint, &#x27;MEGABRAIN_ENDPOINT must override credentials.json&#x27;);
+
+    // Caso 3: Flag --endpoint -&gt; deve sobrepor Env var e arquivo
+    const flagEndpoint = `http://127.0.0.1:${port}/flag-mcp`;
+    const s3 = await runCliAsync([&#x27;status&#x27;, &#x27;--json&#x27;, &#x27;--endpoint&#x27;, flagEndpoint], {
+      ...envDefaults,
+      MEGABRAIN_ENDPOINT: envEndpoint,
+    });
+    assert.equal(s3.status, 0);
+    const p3 = JSON.parse(s3.stdout || &#x27;{}&#x27;);
+    assert.equal(p3.endpoint, flagEndpoint, &#x27;--endpoint flag must override MEGABRAIN_ENDPOINT and credentials.json&#x27;);
+
+    // 3b. Prioridade de Token:
+    // Caso 1: Apenas arquivo configurado -&gt; deve enviar fileToken
+    lastAuth = null;
+    const c1 = await runCliAsync([&#x27;call&#x27;, &#x27;atlas.health&#x27;, &#x27;{}&#x27;, &#x27;--endpoint&#x27;, mockEndpoint, &#x27;--json&#x27;], {
+      ...envDefaults,
+      MEGABRAIN_TOKEN: &#x27;&#x27;,
+    });
+    assert.equal(c1.status, 0);
+    assert.equal(lastAuth, `Bearer ${fileToken}`, &#x27;Fallback to credentials.json token&#x27;);
+
+    // Caso 2: Env var setada -&gt; deve sobrepor arquivo
+    lastAuth = null;
+    const c2 = await runCliAsync([&#x27;call&#x27;, &#x27;atlas.health&#x27;, &#x27;{}&#x27;, &#x27;--endpoint&#x27;, mockEndpoint, &#x27;--json&#x27;], {
+      ...envDefaults,
+      MEGABRAIN_TOKEN: &#x27;token-from-env&#x27;,
+    });
+    assert.equal(c2.status, 0);
+    assert.equal(lastAuth, &#x27;Bearer token-from-env&#x27;, &#x27;MEGABRAIN_TOKEN must override credentials.json token&#x27;);
+
+    // Caso 3: Flag --token rejeitada
+    const c3 = await runCliAsync([&#x27;call&#x27;, &#x27;test&#x27;, &#x27;{}&#x27;, &#x27;--endpoint&#x27;, mockEndpoint, &#x27;--token&#x27;, &#x27;token-from-flag&#x27;, &#x27;--json&#x27;], {
+      ...envDefaults,
+      MEGABRAIN_TOKEN: &#x27;token-from-env&#x27;,
+    });
+    assert.equal(c3.status, 1);
+    assert.ok(!c3.stderr.includes(&#x27;token-from-flag&#x27;));
+
+    // 3c. Preservacao de endpoint customizado durante login sem --endpoint
+    const l1 = await runCliAsync([&#x27;login&#x27;, &#x27;--json&#x27;], { ...envDefaults, MEGABRAIN_TOKEN: &#x27;another-token&#x27;, MEGABRAIN_ENDPOINT: &#x27;&#x27; });
+    assert.equal(l1.status, 0);
+    const credContent = JSON.parse(fs.readFileSync(path.join(cDir, &#x27;credentials.json&#x27;), &#x27;utf8&#x27;));
+    assert.equal(credContent.token, &#x27;another-token&#x27;);
+    assert.equal(credContent.endpoint, fileEndpoint, &#x27;login command without --endpoint must NOT clobber custom endpoint&#x27;);
+    const noTok = await runCliAsync([&#x27;login&#x27;], { ...envDefaults, MEGABRAIN_TOKEN: &#x27;&#x27;, XDG_CONFIG_HOME: path.join(tmpDir, &#x27;nc&#x27;) });
+    assert.ok(noTok.status === 1 &amp;&amp; !fs.existsSync(path.join(tmpDir, &#x27;nc&#x27;)));
+  } finally {
+    server.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test(&#x27;4. Codigos de saida de erro quando argumentos invalidos sao passados&#x27;, async () =&gt; {
+  const r1 = await runCliAsync([&#x27;invalid_command_xyz&#x27;]);
+  assert.equal(r1.status, 1, &#x27;Unknown command should exit with code 1&#x27;);
+  assert.match(r1.stderr, /Unknown command: &#x27;invalid_command_xyz&#x27;/);
+
+  const r2 = await runCliAsync([&#x27;call&#x27;]);
+  assert.equal(r2.status, 1, &#x27;call without tool name should exit with code 1&#x27;);
+  assert.match(r2.stderr, /Tool name required/);
+
+  const r3 = await runCliAsync([&#x27;call&#x27;, &#x27;atlas.health&#x27;, &#x27;{not-json&#x27;]);
+  assert.equal(r3.status, 1, &#x27;call with malformed JSON should exit with code 1&#x27;);
+  assert.match(r3.stderr, /Invalid JSON arguments/);
+
+  const r4 = await runCliAsync([&#x27;status&#x27;, &#x27;--endpoint&#x27;, &#x27;not_a_valid_url&#x27;]);
+  assert.equal(r4.status, 1, &#x27;status with invalid endpoint URL should exit with code 1&#x27;);
+  assert.match(r4.stderr, /Invalid URL|Endpoint invalido/);
+});
+
+test(&#x27;5. Suporte nativo a .env local no CLI sem dependencias externas&#x27;, async () =&gt; {
+  if (typeof process.loadEnvFile !== &#x27;function&#x27;) return;
+  const tmpDir = path.join(os.tmpdir(), `mb-env-${Date.now()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+  fs.writeFileSync(path.join(tmpDir, &#x27;.env&#x27;), &#x27;MEGABRAIN_ENDPOINT=https://custom-test.local/mcp\n&#x27;);
+  try {
+    const res = await new Promise((resolve) =&gt; {
+      const env = { ...process.env, NODE_OPTIONS: &#x27;--import data:text/javascript,globalThis.fetch=async()=&gt;new%20Response(JSON.stringify({status:%22ok%22}))&#x27; };
+      delete env.MEGABRAIN_ENDPOINT;
+      delete env.MEGABRAIN_TOKEN;
+      const child = spawn(process.execPath, [binPath, &#x27;status&#x27;, &#x27;--json&#x27;], { env, cwd: tmpDir });
+      let stdout = &#x27;&#x27;;
+      child.stdout.on(&#x27;data&#x27;, d =&gt; { stdout += d; });
+      child.on(&#x27;close&#x27;, code =&gt; resolve({ status: code, stdout }));
+    });
+    assert.equal(res.status, 0);
+    const parsed = JSON.parse(res.stdout || &#x27;{}&#x27;);
+    assert.equal(parsed.endpoint, &#x27;https://custom-test.local/mcp&#x27;);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test(&#x27;6. setup --write-mcp grava megabrain.mcp.json sem token plaintext&#x27;, async () =&gt; {
+  const tmp = path.join(os.tmpdir(), `mb-setup-${Date.now()}`);
+  const cfg = path.join(tmp, &#x27;megabrain.mcp.json&#x27;);
+  try {
+    const r1 = await runCliAsync([&#x27;setup&#x27;, &#x27;--dest&#x27;, tmp, &#x27;--endpoint&#x27;, &#x27;http://127.0.0.1:65534&#x27;, &#x27;--json&#x27;], { MEGABRAIN_TOKEN: &#x27;sec1&#x27; });
+    assert.equal(fs.existsSync(cfg), false);
+    const r2 = await runCliAsync([&#x27;setup&#x27;, &#x27;--dest&#x27;, tmp, &#x27;--write-mcp&#x27;, &#x27;--endpoint&#x27;, &#x27;http://127.0.0.1:65534&#x27;, &#x27;--json&#x27;], { MEGABRAIN_TOKEN: &#x27;sec1&#x27; });
+    assert.equal(fs.existsSync(cfg), true);
+    const data = JSON.parse(fs.readFileSync(cfg, &#x27;utf8&#x27;));
+    assert.equal(data.mcpServers.atlas.url, &#x27;http://127.0.0.1:65534&#x27;);
+    assert.equal(data.mcpServers.atlas.headers.Authorization, &#x27;Bearer ${MEGABRAIN_TOKEN}&#x27;);
+    assert.ok(!r1.stdout.includes(&#x27;sec1&#x27;) &amp;&amp; !r2.stdout.includes(&#x27;sec1&#x27;) &amp;&amp; !JSON.stringify(data).includes(&#x27;sec1&#x27;));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test(&#x27;7. login com endpoint invalido falha e preserva credentials.json inalterado&#x27;, async () =&gt; {
+  const tmpDir = path.join(os.tmpdir(), `mb-login-atomic-${Date.now()}`);
+  const cDir = path.join(tmpDir, &#x27;megabrain&#x27;);
+  const credFile = path.join(cDir, &#x27;credentials.json&#x27;);
+  fs.mkdirSync(cDir, { recursive: true, mode: 0o700 });
+  const initialContent = JSON.stringify({ token: &#x27;old-token&#x27;, endpoint: &#x27;https://mcp.atlascommand.dev/mcp&#x27; }, null, 2) + &#x27;\n&#x27;;
+  fs.writeFileSync(credFile, initialContent, { mode: 0o600 });
+  try {
+    const res = await runCliAsync([&#x27;login&#x27;, &#x27;--endpoint&#x27;, &#x27;not_a_valid_url&#x27;], {
+      XDG_CONFIG_HOME: tmpDir,
+      MEGABRAIN_TOKEN: &#x27;new-token&#x27;,
+    });
+    assert.equal(res.status, 1);
+    assert.ok(!res.stderr.includes(&#x27;new-token&#x27;));
+    assert.equal(fs.readFileSync(credFile, &#x27;utf8&#x27;), initialContent);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+</pre></section><section><h2>tests/issue351_ast_function_signature.test.js</h2><pre>import &#x27;./issue351_ast_interface.test.js&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { sliceAst } from &#x27;../scripts/ast_slice.js&#x27;;
+
+test(&#x27;AST_FN_DESTRUCTURED_TYPE_RETURN_PRESERVED&#x27;, () =&gt; {
+  const code = &#x27;export function foo({name}:{name:string}):string { return name; }&#x27;;
+  const o = sliceAst(code, &#x27;ts&#x27;);
+  assert.equal(o.declarations[0], &#x27;export function foo({name}:{name:string}):string&#x27;);
+  assert.doesNotMatch(o.outline, /return/);
+});
+
+test(&#x27;AST_FN_DESTRUCTURED_MULTILINE_PRESERVED&#x27;, () =&gt; {
+  const code = `export function foo(
+  { name }: { name: string }
+): string {
+  return name;
+}`;
+  const o = sliceAst(code, &#x27;ts&#x27;);
+  assert.match(o.declarations[0], /export function foo/);
+  assert.match(o.declarations[0], /name:\s*string/);
+  assert.match(o.declarations[0], /:\s*string/);
+  assert.doesNotMatch(o.outline, /return/);
+});
+
+test(&#x27;AST_FN_TWO_FUNCTIONS_NOT_MERGED&#x27;, () =&gt; {
+  const code = `export function foo({name}:{name:string}):string { return name; }
+export function bar({id}:{id:number}):number { return id; }`;
+  const o = sliceAst(code, &#x27;ts&#x27;);
+  assert.equal(o.declarations.length, 2);
+  assert.equal(o.declarations[0], &#x27;export function foo({name}:{name:string}):string&#x27;);
+  assert.equal(o.declarations[1], &#x27;export function bar({id}:{id:number}):number&#x27;);
+  assert.doesNotMatch(o.outline, /return/);
+});
+</pre></section><section><h2>tests/issue351_ast_interface.test.js</h2><pre>import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { sliceAst } from &#x27;../scripts/ast_slice.js&#x27;;
+test(&#x27;AST_IFACE_INLINE&#x27;, () =&gt; { const o = sliceAst(&#x27;export interface User { id: string; }&#x27;,&#x27;ts&#x27;); assert.match(o.outline, /id:\s*string/); });
+test(&#x27;AST_FN_SIG&#x27;, () =&gt; { const o = sliceAst(&#x27;function foo(){ return 1; }&#x27;,&#x27;js&#x27;); assert.match(o.outline, /function foo/); assert.doesNotMatch(o.outline, /return 1/); });
+test(&#x27;AST_FN_INTERFACE_WORD&#x27;, () =&gt; { const o = sliceAst(&#x27;function foo(){ return &quot;interface&quot;; }&#x27;,&#x27;js&#x27;); assert.match(o.outline, /function foo/); assert.doesNotMatch(o.outline, /return/); });
+test(&#x27;AST_IFACE_MULTILINE&#x27;, () =&gt; {
+  const code = &#x27;export interface User {\n id: string;\n name: number;\n}\nexport const x = 1;&#x27;;
+  const o = sliceAst(code, &#x27;ts&#x27;);
+  assert.match(o.outline, /interface User/);
+  assert.match(o.outline, /id:\s*string/);
+  assert.match(o.outline, /name:\s*number/);
+  assert.doesNotMatch(o.declarations[0], /export const x/);
+  assert.match(o.outline, /export const x/);
+});
+test(&#x27;AST_IFACE_UNTERMINATED_DIAGNOSTIC&#x27;, () =&gt; {
+  const code = &#x27;export interface User {\n id: string;&#x27;;
+  const o = sliceAst(code, &#x27;ts&#x27;);
+  assert.match(o.outline, /unterminated/);
+});
+</pre></section><section><h2>tests/issue351_call_args.test.js</h2><pre>import assert from &quot;node:assert/strict&quot;;
+import { spawnSync } from &quot;node:child_process&quot;;
+import { test } from &quot;node:test&quot;;
+import { fileURLToPath } from &quot;node:url&quot;;
+import { validateToolName } from &quot;../src/commands/call.js&quot;;
+
+const BIN = fileURLToPath(new URL(&quot;../bin/megabrain.js&quot;, import.meta.url));
+
+function runCli(args) {
+  return spawnSync(process.execPath, [BIN, ...args], { encoding: &quot;utf8&quot; });
+}
+
+function assertRejected(result, message) {
+  assert.notStrictEqual(result.status, 0, `expected non-zero exit, got ${result.status}`);
+  assert.match(result.stderr, message);
+  assert.doesNotMatch(result.stderr, /HTTP \d{3}/, &quot;must fail before reaching the network&quot;);
+}
+
+test(&quot;CALL_REJECT_BARE: bare tool name without megabrain. prefix is rejected&quot;, () =&gt; {
+  assertRejected(runCli([&quot;call&quot;, &quot;health&quot;, &quot;{}&quot;]), /Tool name must be atlas\.&lt;tool&gt;/);
+});
+
+test(&quot;CALL_REJECT_ARRAY: array arguments are rejected before the network call&quot;, () =&gt; {
+  assertRejected(runCli([&quot;call&quot;, &quot;atlas.health&quot;, &quot;[]&quot;]), /Arguments must be a JSON object/);
+});
+
+test(&quot;CALL_REJECT_NULL: null arguments are rejected before the network call&quot;, () =&gt; {
+  assertRejected(runCli([&quot;call&quot;, &quot;atlas.health&quot;, &quot;null&quot;]), /Arguments must be a JSON object/);
+});
+
+test(&quot;CALL_VALIDATE_TOOL_NAME: matrix of accepted and rejected tool names&quot;, () =&gt; {
+  for (const ok of [&quot;atlas.health&quot;, &quot;atlas_health&quot;, &quot;atlas.get_mission&quot;]) {
+    assert.doesNotThrow(() =&gt; validateToolName(ok));
+  }
+  for (const bad of [&quot;atlas.&quot;, &quot;atlas..health&quot;, &quot;atlas.health.&quot;, &quot;health&quot;, &quot;megabrain.health&quot;, &quot;&quot;]) {
+    assert.throws(() =&gt; validateToolName(bad), /Tool name must be atlas\.&lt;tool&gt;/);
+  }
+});
+
+test(&quot;CALL_REJECT_EMPTY_STRING: explicit empty string arguments are rejected before the network call&quot;, () =&gt; {
+  assertRejected(runCli([&quot;call&quot;, &quot;atlas.health&quot;, &quot;&quot;]), /Invalid JSON arguments/);
+});
+</pre></section><section><h2>tests/issue351_call_error.test.js</h2><pre>import { test } from &quot;node:test&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { run } from &quot;../src/commands/call.js&quot;;
+
+async function runWith(result) {
+  const lines = [];
+  const originalLog = console.log;
+  const originalExitCode = process.exitCode;
+  console.log = (...parts) =&gt; {
+    lines.push(parts.map((p) =&gt; (typeof p === &quot;string&quot; ? p : JSON.stringify(p))).join(&quot; &quot;));
+  };
+  process.exitCode = undefined;
+  let failure = null;
+  try {
+    await run({ positionals: [&quot;atlas.health&quot;, &quot;{}&quot;], flags: { json: true }, callToolFn: async () =&gt; result });
+  } catch (e) {
+    failure = e;
+  } finally {
+    console.log = originalLog;
+  }
+  const exitCode = process.exitCode;
+  process.exitCode = originalExitCode;
+  if (failure) throw failure;
+  return { exitCode, stdout: lines.join(&quot;\n&quot;) };
+}
+
+test(&quot;CALL_ISERROR&quot;, async () =&gt; {
+  const result = { isError: true, content: [{ type: &quot;text&quot;, text: &quot;x&quot; }] };
+  const { exitCode, stdout } = await runWith(result);
+  assert.equal(exitCode, 1);
+  assert.deepEqual(JSON.parse(stdout), result);
+});
+
+test(&quot;CALL_STATUS_ERROR&quot;, async () =&gt; {
+  const result = { status: &quot;error&quot; };
+  const { exitCode, stdout } = await runWith(result);
+  assert.equal(exitCode, 1);
+  assert.deepEqual(JSON.parse(stdout), result);
+});
+
+test(&quot;CALL_OK&quot;, async () =&gt; {
+  const result = { status: &quot;ok&quot;, data: 1 };
+  const { exitCode, stdout } = await runWith(result);
+  assert.ok(exitCode === 0 || exitCode == null);
+  assert.deepEqual(JSON.parse(stdout), result);
+});
+
+test(&quot;CALL_BUSINESS_FAILURE_MATRIX&quot;, async () =&gt; {
+  const failCases = [
+    { structuredContent: { status: &quot;error&quot; } },
+    { structuredContent: { error_code: &quot;INVALID_ARGUMENT&quot; } },
+    { content: [{ type: &quot;text&quot;, text: JSON.stringify({ status: &quot;error&quot; }) }] },
+    { content: [{ type: &quot;text&quot;, text: JSON.stringify({ error_code: &quot;NO_EXECUTABLE_ROUTE&quot; }) }] },
+    { status: &quot;FAILED&quot; },
+    { structuredContent: { status: &quot;NOT_EXECUTED&quot; } },
+    { content: [{ type: &quot;text&quot;, text: JSON.stringify({ status: &quot;BLOCKED&quot; }) }] },
+    { structuredContent: { status: &quot;MALFORMED_RESULT&quot; } },
+    { content: [{ type: &quot;text&quot;, text: JSON.stringify({ status: &quot;INSUFFICIENT_EVIDENCE&quot; }) }] },
+    { structuredContent: { status: &quot;SKIPPED&quot;, exit_code: 2 } },
+    { content: [{ type: &quot;text&quot;, text: JSON.stringify({ status: &quot;SKIPPED&quot;, error_code: &quot;ERR&quot; }) }] },
+  ];
+  for (const r of failCases) {
+    const { exitCode } = await runWith(r);
+    assert.equal(exitCode, 1);
+  }
+  const okCases = [
+    { content: [{ type: &quot;text&quot;, text: &quot;texto nao json&quot; }], status: &quot;ok&quot; },
+    { content: [{ type: &quot;text&quot;, text: JSON.stringify({ status: &quot;ok&quot; }) }], structuredContent: { status: &quot;ok&quot; } },
+    { status: &quot;SKIPPED&quot;, reason: &quot;cached&quot;, exit_code: 0 },
+    { structuredContent: { status: &quot;SKIPPED&quot;, skip_record: { id: 1 } } },
+    { content: [{ type: &quot;text&quot;, text: JSON.stringify({ status: &quot;SKIPPED&quot;, error: { code: 500 } }) }] },
+  ];
+  for (const r of okCases) {
+    const { exitCode } = await runWith(r);
+    assert.ok(exitCode === 0 || exitCode == null);
+  }
+});
+</pre></section><section><h2>tests/issue351_dag_dependencies.test.js</h2><pre>import { validateDAG } from &#x27;../scripts/dag_validator.js&#x27;
+import { test } from &#x27;node:test&#x27;
+import assert from &#x27;node:assert/strict&#x27;
+
+test(&#x27;DAG_CYCLE_DEPS: cycle via dependencies fails validation&#x27;, () =&gt; {
+  const r = validateDAG([
+    { id: &#x27;a&#x27;, dependencies: [&#x27;b&#x27;] },
+    { id: &#x27;b&#x27;, dependencies: [&#x27;a&#x27;] }
+  ])
+  assert.equal(r.valid, false)
+  assert.deepEqual(r.cycles.sort(), [&#x27;a&#x27;, &#x27;b&#x27;])
+  assert.equal(r.missing_dependencies.length, 0)
+})
+
+test(&#x27;DAG_MISSING_DEPS: ghost via dependencies reported in missing_dependencies&#x27;, () =&gt; {
+  const r = validateDAG([{ id: &#x27;a&#x27;, dependencies: [&#x27;ghost&#x27;] }])
+  assert.equal(r.valid, false)
+  assert.ok(r.missing_dependencies.includes(&#x27;ghost&#x27;))
+  assert.equal(r.cycles.length, 0)
+})
+
+test(&#x27;DAG_PARITY: dependencies and depends_on produce identical waves&#x27;, () =&gt; {
+  const legacy = [{ id: &#x27;a&#x27; }, { id: &#x27;b&#x27;, depends_on: [&#x27;a&#x27;] }, { id: &#x27;c&#x27;, depends_on: [&#x27;b&#x27;] }]
+  const canonical = [{ id: &#x27;a&#x27; }, { id: &#x27;b&#x27;, dependencies: [&#x27;a&#x27;] }, { id: &#x27;c&#x27;, dependencies: [&#x27;b&#x27;] }]
+  const r1 = validateDAG(legacy)
+  const r2 = validateDAG(canonical)
+  assert.equal(r2.valid, true)
+  assert.deepEqual(r2.waves, r1.waves)
+})
+
+test(&#x27;DAG_STRING_SHAPE: string dependencies does not spread into character ids&#x27;, () =&gt; {
+  const r = validateDAG([{ id: &#x27;a&#x27;, dependencies: &#x27;ghost&#x27; }])
+  assert.equal(r.valid, true)
+  assert.equal(r.missing_dependencies.length, 0)
+  assert.deepEqual(r.waves, [[&#x27;a&#x27;]])
+})
+
+test(&#x27;DAG_CONFLICT: canonical dependencies has documented precedence over legacy depends_on&#x27;, () =&gt; {
+  const r = validateDAG([
+    { id: &#x27;a&#x27; },
+    { id: &#x27;b&#x27; },
+    { id: &#x27;c&#x27;, dependencies: [&#x27;a&#x27;], depends_on: [&#x27;ghost&#x27;] }
+  ])
+  assert.equal(r.valid, true)
+  assert.equal(r.missing_dependencies.length, 0)
+  assert.deepEqual(r.waves, [[&#x27;a&#x27;, &#x27;b&#x27;], [&#x27;c&#x27;]])
+})
+</pre></section><section><h2>tests/issue351_dag_ids.test.js</h2><pre>import { validateDAG } from &#x27;../scripts/dag_validator.js&#x27;
+import { test } from &#x27;node:test&#x27;
+import assert from &#x27;node:assert/strict&#x27;
+
+test(&#x27;DAG_DUP: duplicate id is rejected and produces no waves&#x27;, () =&gt; {
+  const r = validateDAG([{ id: &#x27;x&#x27; }, { id: &#x27;x&#x27; }])
+  assert.equal(r.valid, false)
+  assert.equal(r.waves.length, 0)
+  assert.equal(r.error, &#x27;DUPLICATE_ID&#x27;)
+})
+
+test(&#x27;DAG_BAD_ID: empty, absent and null ids are rejected&#x27;, () =&gt; {
+  assert.equal(validateDAG([{ id: &#x27;&#x27; }]).error, &#x27;INVALID_ID&#x27;)
+  assert.equal(validateDAG([{}]).error, &#x27;INVALID_ID&#x27;)
+  assert.equal(validateDAG([{ id: null }]).error, &#x27;INVALID_ID&#x27;)
+  assert.equal(validateDAG([{ id: &#x27;x&#x27; }, { id: null }]).error, &#x27;INVALID_ID&#x27;)
+})
+
+test(&#x27;DAG_LINEAR: linear a-&gt;b dependency stays valid&#x27;, () =&gt; {
+  const r = validateDAG([{ id: &#x27;a&#x27; }, { id: &#x27;b&#x27;, depends_on: [&#x27;a&#x27;] }])
+  assert.equal(r.valid, true)
+  assert.equal(r.cycles.length, 0)
+  assert.equal(r.missing_dependencies.length, 0)
+  assert.deepEqual(r.waves, [[&#x27;a&#x27;], [&#x27;b&#x27;]])
+})
+
+test(&#x27;DAG_INDEPENDENT: two roots share one wave and each id appears once&#x27;, () =&gt; {
+  const r = validateDAG([{ id: &#x27;a&#x27; }, { id: &#x27;b&#x27; }])
+  assert.equal(r.valid, true)
+  assert.equal(r.waves.length, 1)
+  assert.deepEqual([...r.waves[0]].sort(), [&#x27;a&#x27;, &#x27;b&#x27;])
+  assert.equal(new Set(r.waves.flat()).size, 2)
+})
+
+test(&#x27;DAG_BAD_TYPE: boolean and object ids are INVALID_ID&#x27;, () =&gt; {
+  assert.equal(validateDAG([{ id: true }]).error, &#x27;INVALID_ID&#x27;)
+  assert.equal(validateDAG([{ id: { x: 1 } }]).error, &#x27;INVALID_ID&#x27;)
+})
+
+test(&#x27;DAG_MISSING vs DAG_CYCLE: missing dependency and cycle stay distinct&#x27;, () =&gt; {
+  const missing = validateDAG([{ id: &#x27;a&#x27;, depends_on: [&#x27;ghost&#x27;] }])
+  assert.equal(missing.valid, false)
+  assert.ok(missing.missing_dependencies.includes(&#x27;ghost&#x27;))
+  assert.equal(missing.cycles.length, 0)
+  const cycle = validateDAG([{ id: &#x27;a&#x27;, depends_on: [&#x27;b&#x27;] }, { id: &#x27;b&#x27;, depends_on: [&#x27;a&#x27;] }])
+  assert.equal(cycle.valid, false)
+  assert.ok(cycle.cycles.length &gt; 0)
+  assert.equal(cycle.missing_dependencies.length, 0)
+})
+</pre></section><section><h2>tests/issue351_docs_audit.test.js</h2><pre>import { readFileSync } from &#x27;node:fs&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { dirname, join } from &#x27;node:path&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const root = join(dirname(fileURLToPath(import.meta.url)), &#x27;..&#x27;);
+const skill = readFileSync(join(root, &#x27;megabrain-audit/SKILL.md&#x27;), &#x27;utf8&#x27;);
+const merkle = readFileSync(join(root, &#x27;megabrain-audit/references/merkle-ledger-spec.md&#x27;), &#x27;utf8&#x27;);
+const receipt = readFileSync(join(root, &#x27;megabrain-audit/references/receipt-ed25519-verification.md&#x27;), &#x27;utf8&#x27;);
+const replay = readFileSync(join(root, &#x27;megabrain-audit/references/time-travel-replay.md&#x27;), &#x27;utf8&#x27;);
+const docs = skill + merkle + receipt + replay;
+
+test(&#x27;DOCS_AUDIT_CHAIN&#x27;, () =&gt; {
+  assert.match(skill, /merkle_verify\.js/);
+  assert.match(docs, /somente a cadeia local/);
+  assert.match(docs, /Referência não é assinatura verificada/);
+  assert.doesNotMatch(skill, /--work_id/);
+  assert.doesNotMatch(docs, new RegExp([&#x27;Luiz&#x27;, &#x27;Karlos&#x27;].join(&#x27;&#x27;)));
+});
+
+test(&#x27;DOCS_AUDIT_EXPORT&#x27;, () =&gt; {
+  assert.match(skill, /atlas\.export_evidence/);
+  assert.match(merkle, /falha fechado/);
+});
+
+test(&#x27;DOCS_AUDIT_REPLAY&#x27;, () =&gt; {
+  assert.match(receipt, /não prova Ed25519/);
+  assert.match(replay, /JSON objeto/);
+  assert.match(docs, /não prova Ed25519/);
+  assert.match(skill, /Number\.isSafeInteger/);
+  assert.match(skill, /\{blocks/);
+  assert.doesNotMatch(skill, /target_index/);
+  const calls = [...skill.matchAll(/megabrain call (\S+) &#x27;([^&#x27;]+)&#x27;/g)].map(m =&gt; ({ tool: m[1], json: JSON.parse(m[2]) }));
+  assert.ok(calls.length &gt;= 2);
+  assert.ok(calls.find(c =&gt; c.tool === &#x27;atlas.export_evidence&#x27;)?.json.project_id);
+});
+</pre></section><section><h2>tests/issue351_docs_context.test.js</h2><pre>import { readFileSync } from &#x27;node:fs&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { dirname, join } from &#x27;node:path&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const root = join(dirname(fileURLToPath(import.meta.url)), &#x27;..&#x27;);
+const skill = readFileSync(join(root, &#x27;megabrain-context/SKILL.md&#x27;), &#x27;utf8&#x27;);
+const ast = readFileSync(join(root, &#x27;megabrain-context/references/ast-virtualization.md&#x27;), &#x27;utf8&#x27;);
+const openapi = readFileSync(join(root, &#x27;megabrain-context/references/openapi-contract-synthesis.md&#x27;), &#x27;utf8&#x27;);
+const docs = skill + ast + openapi;
+
+test(&#x27;DOCS_CTX_OUTLINE&#x27;, () =&gt; {
+  assert.match(docs, /outline local limitado/);
+  assert.match(skill, /AST Python no servidor/);
+  assert.match(docs, /preserva/);
+  assert.doesNotMatch(skill, /ast_slice\.js[^\n]*--json/);
+  assert.doesNotMatch(docs, new RegExp([&#x27;Luiz&#x27;, &#x27;Karlos&#x27;].join(&#x27;&#x27;)));
+});
+
+test(&#x27;DOCS_CTX_NAMES&#x27;, () =&gt; {
+  assert.match(skill, /atlas\.begin_upload/);
+  assert.match(skill, /atlas\.complete_upload/);
+  assert.match(skill, /allowed_scope/);
+});
+
+test(&#x27;DOCS_CTX_NO_PROMISE&#x27;, () =&gt; {
+  assert.match(docs, /sem medir/);
+  assert.match(openapi, /JSON objeto/);
+  assert.doesNotMatch(openapi, /call synthesize_backend_contract --operation_id/);
+  assert.doesNotMatch(skill, /&lt;3k/);
+  assert.match(skill, /Sintaxes exercitadas/);
+  const calls = [...skill.matchAll(/megabrain call (\S+) &#x27;([^&#x27;]+)&#x27;/g)].map(m =&gt; ({ tool: m[1], json: JSON.parse(m[2]) }));
+  assert.ok(calls.length &gt;= 2);
+  for (const c of calls) {
+    assert.equal(typeof c.json, &#x27;object&#x27;);
+    assert.notEqual(c.json, null);
+  }
+});
+</pre></section><section><h2>tests/issue351_docs_orchestrate.test.js</h2><pre>import { readFileSync } from &#x27;node:fs&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { dirname, join } from &#x27;node:path&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const root = join(dirname(fileURLToPath(import.meta.url)), &#x27;..&#x27;);
+const skill = readFileSync(join(root, &#x27;megabrain-orchestrate/SKILL.md&#x27;), &#x27;utf8&#x27;);
+const life = readFileSync(join(root, &#x27;megabrain-orchestrate/references/mission-lifecycle.md&#x27;), &#x27;utf8&#x27;);
+const swarm = readFileSync(join(root, &#x27;megabrain-orchestrate/references/swarm-coordination.md&#x27;), &#x27;utf8&#x27;);
+const docs = skill + life + swarm;
+
+function extractCalls(markdown) {
+  const blocks = [...markdown.matchAll(/```bash\n([\s\S]*?)```/g)];
+  const calls = [];
+  for (const b of blocks) {
+    for (const m of b[1].matchAll(/megabrain\s+call\s+([\w.]+)\s+&#x27;([^&#x27;]+)&#x27;/g)) {
+      const parsed = JSON.parse(m[2]);
+      assert.equal(typeof parsed, &#x27;object&#x27;);
+      assert.notEqual(parsed, null);
+      assert.equal(Array.isArray(parsed), false);
+      calls.push({ tool: m[1], json: parsed });
+    }
+  }
+  return calls;
+}
+const calls = Object.fromEntries(extractCalls(skill).map(c =&gt; [c.tool, c.json]));
+
+test(&#x27;DOCS_ORCH_CONTRACT&#x27;, () =&gt; {
+  assert.match(skill, /atlas\.create_mission/);
+  assert.match(skill, /atlas\.claim_task/);
+  assert.match(skill, /atlas\.request_verification/);
+  assert.match(skill, /atlas\.export_evidence/);
+  assert.doesNotMatch(skill, /budget_tokens/);
+  assert.doesNotMatch(docs, new RegExp([&#x27;Luiz&#x27;, &#x27;Karlos&#x27;].join(&#x27;&#x27;)));
+  const mission = calls[&#x27;atlas.create_mission&#x27;];
+  assert.ok(mission &amp;&amp; mission.project_id &amp;&amp; mission.mission_id &amp;&amp; Array.isArray(mission.tasks));
+  for (const c of extractCalls(skill)) {
+    assert.ok(!(&#x27;budget_tokens&#x27; in c.json) &amp;&amp; !(&#x27;max_concurrency&#x27; in c.json));
+    assert.ok(!String(c.tool).startsWith(&#x27;megabrain.&#x27;));
+  }
+});
+
+test(&#x27;DOCS_SWARM_BLOCKED&#x27;, () =&gt; {
+  assert.match(docs, /INSUFFICIENT_EVIDENCE/);
+  assert.match(docs, /NOT_EXECUTED/);
+  assert.doesNotMatch(skill, /max_concurrency/);
+  assert.match(swarm, /agent_id/);
+});
+
+test(&#x27;DOCS_QUALIFIED_NAMES&#x27;, () =&gt; {
+  assert.match(skill, /atlas\.begin_upload/);
+  assert.match(skill, /atlas\.submit_task_result/);
+  assert.match(life, /MISSION_NOT_FOUND/);
+  assert.ok(calls[&#x27;atlas.health&#x27;]);
+  assert.ok(calls[&#x27;atlas.claim_task&#x27;]?.project_id);
+  assert.ok(calls[&#x27;atlas.export_evidence&#x27;]?.project_id &amp;&amp; calls[&#x27;atlas.export_evidence&#x27;]?.mission_id);
+});
+</pre></section><section><h2>tests/issue351_docs_pipeline.test.js</h2><pre>import { readFileSync } from &#x27;node:fs&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { dirname, join } from &#x27;node:path&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const root = join(dirname(fileURLToPath(import.meta.url)), &#x27;..&#x27;);
+const skill = readFileSync(join(root, &#x27;megabrain-pipeline/SKILL.md&#x27;), &#x27;utf8&#x27;);
+const heal = readFileSync(join(root, &#x27;megabrain-pipeline/references/auto-healing-patterns.md&#x27;), &#x27;utf8&#x27;);
+const dag = readFileSync(join(root, &#x27;megabrain-pipeline/references/dag-decomposition-rules.md&#x27;), &#x27;utf8&#x27;);
+const waves = readFileSync(join(root, &#x27;megabrain-pipeline/references/topological-waves.md&#x27;), &#x27;utf8&#x27;);
+const docs = skill + heal + dag + waves;
+
+function extractCalls(markdown) {
+  const blocks = [...markdown.matchAll(/```bash\n([\s\S]*?)```/g)];
+  const calls = [];
+  for (const b of blocks) {
+    for (const m of b[1].matchAll(/megabrain\s+call\s+([\w.]+)\s+&#x27;([^&#x27;]+)&#x27;/g)) {
+      const parsed = JSON.parse(m[2]);
+      assert.equal(typeof parsed, &#x27;object&#x27;);
+      assert.notEqual(parsed, null);
+      assert.equal(Array.isArray(parsed), false);
+      calls.push({ tool: m[1], json: parsed });
+    }
+  }
+  return calls;
+}
+const calls = Object.fromEntries(extractCalls(skill).map(c =&gt; [c.tool, c.json]));
+
+test(&#x27;DOCS_PIPE_CONTRACT&#x27;, () =&gt; {
+  assert.match(skill, /atlas\.create_mission/);
+  assert.match(skill, /test_commands/);
+  assert.doesNotMatch(skill, /max_depth/);
+  assert.doesNotMatch(skill, /wave_index/);
+  assert.doesNotMatch(docs, new RegExp([&#x27;Luiz&#x27;, &#x27;Karlos&#x27;].join(&#x27;&#x27;)));
+  assert.ok(calls[&#x27;atlas.create_mission&#x27;]?.tasks);
+  assert.ok(calls[&#x27;atlas.claim_task&#x27;]?.project_id);
+  for (const c of extractCalls(skill)) {
+    assert.ok(!(&#x27;max_depth&#x27; in c.json) &amp;&amp; !(&#x27;wave_index&#x27; in c.json) &amp;&amp; !(&#x27;canary&#x27; in c.json));
+  }
+});
+
+test(&#x27;DOCS_PIPE_HEAL&#x27;, () =&gt; {
+  assert.match(docs, /NOT_EXECUTED/);
+  assert.match(skill, /BLOCKED/);
+  assert.doesNotMatch(skill, /canary/);
+  assert.match(heal, /synthesize_subtask/);
+});
+
+test(&#x27;DOCS_PIPE_QUALIFIED&#x27;, () =&gt; {
+  assert.match(skill, /atlas\.get_mission/);
+  assert.match(skill, /atlas\.claim_task/);
+  assert.match(dag, /atlas\.create_mission/);
+  assert.match(waves, /test_commands/);
+  assert.ok(calls[&#x27;atlas.create_mission&#x27;] &amp;&amp; calls[&#x27;atlas.get_mission&#x27;]);
+});
+
+test(&#x27;DOCS_PIPE_VERIFY&#x27;, () =&gt; {
+  assert.match(skill, /GREEN/);
+  assert.match(skill, /exit_code:\s*0/);
+  assert.match(skill, /Sem provider/);
+  assert.match(skill, /MALFORMED_RESULT/);
+  assert.match(skill, /NOT_EXECUTED/);
+  assert.match(waves, /GREEN/);
+  assert.match(waves, /exit_code:\s*0/);
+  assert.match(waves, /Sem provider/);
+  assert.match(waves, /MALFORMED_RESULT/);
+  assert.match(waves, /NOT_EXECUTED/);
+  assert.doesNotMatch(skill, /(?:verification|test)_result[&quot;&#x27;]?\s*:\s*[&quot;&#x27;]/);
+  assert.doesNotMatch(docs, /(?:verification|test)_result[&quot;&#x27;]?\s*:\s*[&quot;&#x27;]/);
+});
+</pre></section><section><h2>tests/issue351_docs_review.test.js</h2><pre>import { readFileSync, existsSync } from &#x27;node:fs&#x27;;
+import { execSync } from &#x27;node:child_process&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { dirname, join } from &#x27;node:path&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const root = join(dirname(fileURLToPath(import.meta.url)), &#x27;..&#x27;);
+const skill = readFileSync(join(root, &#x27;megabrain-review/SKILL.md&#x27;), &#x27;utf8&#x27;);
+const slop = readFileSync(join(root, &#x27;megabrain-review/references/anti-slop-patterns.md&#x27;), &#x27;utf8&#x27;);
+const dual = readFileSync(join(root, &#x27;megabrain-review/references/dual-blind-adjudication.md&#x27;), &#x27;utf8&#x27;);
+const voice = readFileSync(join(root, &#x27;megabrain-review/references/voice-calibration.md&#x27;), &#x27;utf8&#x27;);
+const docs = skill + slop + dual + voice;
+
+test(&#x27;DOCS_REV_APPROVED&#x27;, () =&gt; {
+  assert.match(skill, /atlas\.submit_task_review/);
+  assert.match(skill, /approved/);
+  assert.match(docs, /não é autorização/);
+  assert.match(docs, /advisory/);
+  assert.doesNotMatch(docs, new RegExp([&#x27;Luiz&#x27;, &#x27;Karlos&#x27;].join(&#x27;&#x27;)));
+});
+
+test(&#x27;DOCS_REV_NO_ARBITER&#x27;, () =&gt; {
+  assert.match(skill, /Jev é só advisory/);
+  assert.match(dual, /nenhum árbitro LLM server-side/);
+  assert.doesNotMatch(skill, /third-party arbiter/);
+});
+
+test(&#x27;DOCS_REV_JSON&#x27;, () =&gt; {
+  assert.match(skill, /Anti-slop com JSON objeto/);
+  assert.match(skill, /Voice calibrate com JSON objeto/);
+  assert.match(slop, /JSON objeto/);
+  assert.match(voice, /JSON objeto/);
+  assert.doesNotMatch(slop, /call anti_slop_lint --text/);
+});
+
+test(&#x27;DOCS_REV_CALLS_AND_AST&#x27;, () =&gt; {
+  const calls = [...skill.matchAll(/megabrain call (\S+) &#x27;([^&#x27;]+)&#x27;/g)].map(m =&gt; ({ tool: m[1], json: JSON.parse(m[2]) }));
+  assert.ok(calls.length &gt;= 1);
+  for (const c of calls) assert.equal(typeof c.json, &#x27;object&#x27;);
+  const adj = calls.find(c =&gt; c.tool === &#x27;atlas.submit_task_review&#x27;)?.json;
+  assert.ok(adj &amp;&amp; adj.project_id &amp;&amp; adj.mission_id &amp;&amp; adj.task_id &amp;&amp; adj.execution_id &amp;&amp; adj.review_execution_id &amp;&amp; adj.verdict &amp;&amp; adj.rationale);
+  const kPath = process.env.MEGABRAIN_KERNEL_SOURCE || &#x27;/srv/megabrain-dev/repository/runtime/atlas_mcp_server.py&#x27;;
+  const sigs = existsSync(kPath)
+    ? JSON.parse(execSync(&#x27;python3 - &lt;&lt;PY\nimport ast, json\ntree = ast.parse(open(&quot;&#x27; + kPath + &#x27;&quot;).read())\nprint(json.dumps({n.name: [a.arg for a in n.args.args if a.arg not in (&quot;self&quot;,)] for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}))\nPY&#x27;, { encoding: &#x27;utf8&#x27; }))
+    : { atlas_submit_task_review: [&#x27;project_id&#x27;, &#x27;mission_id&#x27;, &#x27;task_id&#x27;, &#x27;execution_id&#x27;, &#x27;review_execution_id&#x27;, &#x27;verdict&#x27;, &#x27;rationale&#x27;] };
+  const allowed = sigs.atlas_submit_task_review || [&#x27;project_id&#x27;, &#x27;mission_id&#x27;, &#x27;task_id&#x27;, &#x27;execution_id&#x27;, &#x27;review_execution_id&#x27;, &#x27;verdict&#x27;, &#x27;rationale&#x27;];
+  assert.ok(Object.keys(adj).every(k =&gt; allowed.includes(k)));
+});
+</pre></section><section><h2>tests/issue351_docs_ui.test.js</h2><pre>import { readFileSync, existsSync } from &#x27;node:fs&#x27;;
+import { execSync } from &#x27;node:child_process&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { dirname, join } from &#x27;node:path&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const root = join(dirname(fileURLToPath(import.meta.url)), &#x27;..&#x27;);
+const skill = readFileSync(join(root, &#x27;megabrain-ui/SKILL.md&#x27;), &#x27;utf8&#x27;);
+const tokens = readFileSync(join(root, &#x27;megabrain-ui/references/design-tokens-spec.md&#x27;), &#x27;utf8&#x27;);
+const visual = readFileSync(join(root, &#x27;megabrain-ui/references/visual-tdd-methodology.md&#x27;), &#x27;utf8&#x27;);
+const wcag = readFileSync(join(root, &#x27;megabrain-ui/references/wcag-target-sizes.md&#x27;), &#x27;utf8&#x27;);
+const docs = skill + tokens + visual + wcag;
+
+test(&#x27;DOCS_UI_CONTENT&#x27;, () =&gt; {
+  assert.match(skill, /atlas\.complete_upload/);
+  assert.match(skill, /html_content/);
+  assert.match(skill, /css_content/);
+  assert.doesNotMatch(skill, /localhost:3000/);
+  assert.doesNotMatch(docs, new RegExp([&#x27;Luiz&#x27;, &#x27;Karlos&#x27;].join(&#x27;&#x27;)));
+});
+
+test(&#x27;DOCS_UI_NO_SSRF&#x27;, () =&gt; {
+  assert.match(visual, /Sem SSRF/);
+  assert.match(skill, /html_content/);
+  assert.doesNotMatch(skill, /css_path/);
+});
+
+test(&#x27;DOCS_UI_WCAG_LOCAL&#x27;, () =&gt; {
+  assert.match(wcag, /JSON\/flags/);
+  assert.match(docs, /não é.*headless/i);
+  assert.match(tokens, /css_content/);
+  assert.doesNotMatch(tokens, /--css_path/);
+});
+
+test(&#x27;DOCS_UI_CALLS_AND_AST&#x27;, () =&gt; {
+  const calls = [...skill.matchAll(/megabrain call (\S+) &#x27;([^&#x27;]+)&#x27;/g)].map(m =&gt; ({ tool: m[1], json: JSON.parse(m[2]) }));
+  assert.ok(calls.length &gt;= 1);
+  for (const c of calls) assert.equal(typeof c.json, &#x27;object&#x27;);
+  const cap = calls.find(c =&gt; c.tool === &#x27;atlas.complete_upload&#x27;);
+  assert.ok(cap &amp;&amp; cap.json.project_id &amp;&amp; cap.json.session_id);
+  assert.match(skill, /127\.0\.0\.1/);
+  const buf = Buffer.from(&#x27;iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==&#x27;, &#x27;base64&#x27;);
+  assert.equal(buf.subarray(0, 4).toString(&#x27;latin1&#x27;), &#x27;\x89PNG&#x27;);
+  assert.match(skill, /89 50 4E 47/);
+  const kPath = process.env.MEGABRAIN_KERNEL_SOURCE || &#x27;/srv/megabrain-dev/repository/runtime/atlas_mcp_server.py&#x27;;
+  const sigs = existsSync(kPath)
+    ? JSON.parse(execSync(&#x27;python3 - &lt;&lt;PY\nimport ast, json\ntree = ast.parse(open(&quot;&#x27; + kPath + &#x27;&quot;).read())\nprint(json.dumps({n.name: [a.arg for a in n.args.args if a.arg not in (&quot;self&quot;,)] for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}))\nPY&#x27;, { encoding: &#x27;utf8&#x27; }))
+    : { atlas_complete_upload: [&#x27;project_id&#x27;, &#x27;session_id&#x27;, &#x27;data_text&#x27;, &#x27;data_base64&#x27;, &#x27;data_hex&#x27;] };
+  const allowed = sigs.atlas_complete_upload || [&#x27;project_id&#x27;, &#x27;session_id&#x27;, &#x27;data_text&#x27;, &#x27;data_base64&#x27;, &#x27;data_hex&#x27;];
+  assert.ok(Object.keys(cap.json).every(k =&gt; allowed.includes(k)));
+});
+</pre></section><section><h2>tests/issue351_endpoint.test.js</h2><pre>import fs from &quot;node:fs&quot;;
+import path from &quot;node:path&quot;;
+import os from &quot;node:os&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { test } from &quot;node:test&quot;;
+import { validateEndpoint, getEndpoint, setEndpoint, saveConfig, loadConfig } from &quot;../src/config.js&quot;;
+import { callTool } from &quot;../src/client.js&quot;;
+
+function withXdg(fn) {
+  const tmpdir = fs.mkdtempSync(path.join(os.tmpdir(), &quot;ep-&quot;));
+  const xdg = path.join(tmpdir, &quot;xdg&quot;);
+  fs.mkdirSync(xdg, { recursive: true });
+  const prev = process.env.XDG_CONFIG_HOME;
+  process.env.XDG_CONFIG_HOME = xdg;
+  try {
+    fn(xdg);
+  } finally {
+    process.env.XDG_CONFIG_HOME = prev;
+    fs.rmSync(tmpdir, { recursive: true, force: true });
+  }
+}
+
+test(&quot;EP_REJECT_TOKEN_QUERY: endpoint com ?token= e rejeitado&quot;, () =&gt; {
+  assert.throws(
+    () =&gt; validateEndpoint(&quot;https://mcp.atlascommand.dev/mcp?token=redacted&quot;),
+    /parametro de consulta sensivel nao permitido/
+  );
+});
+
+test(&quot;EP_REJECT_TOKEN_QUERY em env: env com ?token= nao substitui silenciosamente&quot;, () =&gt; {
+  withXdg(() =&gt; {
+    process.env.MEGABRAIN_ENDPOINT = &quot;https://mcp.atlascommand.dev/mcp?token=redacted&quot;;
+    try {
+      assert.throws(() =&gt; getEndpoint(), /parametro de consulta sensivel nao permitido/);
+    } finally {
+      delete process.env.MEGABRAIN_ENDPOINT;
+    }
+  });
+});
+
+test(&quot;EP_REJECT_USERINFO: endpoint com userinfo e rejeitado&quot;, () =&gt; {
+  assert.throws(
+    () =&gt; validateEndpoint(&quot;https://user:pass@mcp.atlascommand.dev/mcp&quot;),
+    /credenciais.*userinfo/
+  );
+});
+
+test(&quot;EP_REJECT_KEY_QUERY: endpoint com ?key= e rejeitado&quot;, () =&gt; {
+  assert.throws(
+    () =&gt; validateEndpoint(&quot;https://mcp.atlascommand.dev/mcp?key=redacted&quot;),
+    /parametro de consulta sensivel nao permitido/
+  );
+});
+
+test(&quot;EP_REJECT_BEARER_QUERY: endpoint com ?bearer= e rejeitado&quot;, () =&gt; {
+  assert.throws(
+    () =&gt; validateEndpoint(&quot;https://mcp.atlascommand.dev/mcp?bearer=redacted&quot;),
+    /parametro de consulta sensivel nao permitido/
+  );
+});
+
+test(&quot;EP_REJECT_JS_PROTOCOL: esquema javascript: e rejeitado&quot;, () =&gt; {
+  assert.throws(() =&gt; validateEndpoint(&quot;javascript:alert(1)&quot;), /protocolo nao permitido/);
+});
+
+test(&quot;EP_REJECT_FILE_PROTOCOL: esquema file: e rejeitado&quot;, () =&gt; {
+  assert.throws(() =&gt; validateEndpoint(&quot;file:///etc/passwd&quot;), /protocolo nao permitido/);
+});
+
+test(&quot;EP_REJECT_MALFORMED: URL malformada e rejeitada&quot;, () =&gt; {
+  assert.throws(() =&gt; validateEndpoint(&quot;nao-e-url&quot;), /URL malformada/);
+});
+
+test(&quot;EP_REJECT_EMPTY: valor vazio e rejeitado&quot;, () =&gt; {
+  assert.throws(() =&gt; validateEndpoint(&quot;&quot;), /valor ausente/);
+});
+
+test(&quot;EP_OK_HTTPS: https publico e aceito&quot;, () =&gt; {
+  assert.equal(
+    validateEndpoint(&quot;https://mcp.atlascommand.dev/mcp&quot;),
+    &quot;https://mcp.atlascommand.dev/mcp&quot;
+  );
+});
+
+test(&quot;EP_OK_HTTPS: https publico com query nao sensivel e aceito&quot;, () =&gt; {
+  assert.equal(
+    validateEndpoint(&quot;https://mcp.atlascommand.dev/mcp?session=abc&quot;),
+    &quot;https://mcp.atlascommand.dev/mcp?session=abc&quot;
+  );
+});
+
+test(&quot;EP_OK_HTTP_LOOPBACK: http loopback e aceito&quot;, () =&gt; {
+  assert.equal(
+    validateEndpoint(&quot;http://127.0.0.1:9000/mcp&quot;),
+    &quot;http://127.0.0.1:9000/mcp&quot;
+  );
+  assert.equal(
+    validateEndpoint(&quot;http://localhost:9000/mcp&quot;),
+    &quot;http://localhost:9000/mcp&quot;
+  );
+});
+
+test(&quot;EP_ENV_INVALID_NOT_SILENT: env invalido lanca erro em vez de cair no default&quot;, () =&gt; {
+  withXdg(() =&gt; {
+    process.env.MEGABRAIN_ENDPOINT = &quot;javascript:alert(1)&quot;;
+    let erro = null;
+    try {
+      getEndpoint();
+    } catch (e) {
+      erro = e;
+    } finally {
+      delete process.env.MEGABRAIN_ENDPOINT;
+    }
+    assert.ok(erro, &quot;getEndpoint deve lancar erro com env invalido&quot;);
+    assert.match(erro.message, /protocolo nao permitido/);
+  });
+});
+
+test(&quot;EP_ENV_INVALID_NOT_SILENT: env invalido com token em query lanca erro&quot;, () =&gt; {
+  withXdg(() =&gt; {
+    process.env.MEGABRAIN_ENDPOINT = &quot;https://mcp.atlascommand.dev/mcp?token=redacted&quot;;
+    let erro = null;
+    try {
+      getEndpoint();
+    } catch (e) {
+      erro = e;
+    } finally {
+      delete process.env.MEGABRAIN_ENDPOINT;
+    }
+    assert.ok(erro, &quot;getEndpoint deve lancar erro com env invalido&quot;);
+    assert.match(erro.message, /parametro de consulta sensivel nao permitido/);
+  });
+});
+
+test(&quot;EP_SAVE_REJECT_INVALID: setEndpoint rejeita antes de persistir&quot;, () =&gt; {
+  withXdg(() =&gt; {
+    assert.throws(
+      () =&gt; setEndpoint(&quot;https://user:pass@mcp.atlascommand.dev/mcp&quot;),
+      /credenciais.*userinfo/
+    );
+    assert.equal(loadConfig().endpoint, undefined, &quot;endpoint invalido nao pode ser persistido&quot;);
+  });
+});
+
+test(&quot;EP_SAVE_REJECT_INVALID: saveConfig rejeita endpoint invalido&quot;, () =&gt; {
+  withXdg(() =&gt; {
+    assert.throws(
+      () =&gt; saveConfig({ endpoint: &quot;https://mcp.atlascommand.dev/mcp?token=redacted&quot; }),
+      /parametro de consulta sensivel nao permitido/
+    );
+    assert.equal(loadConfig().endpoint, undefined, &quot;endpoint invalido nao pode ser persistido&quot;);
+  });
+});
+
+test(&quot;EP_SAVE_OK_PERMISSIONS: save valido usa dir 0700 e file 0600&quot;, () =&gt; {
+  withXdg((xdg) =&gt; {
+    setEndpoint(&quot;https://mcp.atlascommand.dev/mcp&quot;);
+    const configFile = path.join(xdg, &quot;megabrain&quot;, &quot;credentials.json&quot;);
+    const dirMode = fs.statSync(path.dirname(configFile)).mode &amp; 0o777;
+    const fileMode = fs.statSync(configFile).mode &amp; 0o777;
+    assert.equal(dirMode, 0o700, `dir mode ${dirMode.toString(8)} != 0700`);
+    assert.equal(fileMode, 0o600, `file mode ${fileMode.toString(8)} != 0600`);
+    const saved = JSON.parse(fs.readFileSync(configFile, &quot;utf8&quot;));
+    assert.equal(saved.endpoint, &quot;https://mcp.atlascommand.dev/mcp&quot;);
+    assert.equal(getEndpoint(), &quot;https://mcp.atlascommand.dev/mcp&quot;);
+  });
+});
+
+test(&quot;EP_ENV_EMPTY_FALLS_BACK: MEGABRAIN_ENDPOINT vazio cai no default&quot;, () =&gt; {
+  withXdg(() =&gt; {
+    process.env.MEGABRAIN_ENDPOINT = &quot;&quot;;
+    try {
+      assert.equal(getEndpoint(), &quot;https://mcp.atlascommand.dev/mcp&quot;);
+    } finally {
+      delete process.env.MEGABRAIN_ENDPOINT;
+    }
+  });
+});
+
+test(&quot;EP_STORED_EMPTY_FAILS: endpoint persistido vazio nao cai no default&quot;, () =&gt; {
+  withXdg((xdg) =&gt; {
+    const dir = path.join(xdg, &quot;megabrain&quot;);
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(path.join(dir, &quot;credentials.json&quot;), JSON.stringify({ endpoint: &quot;&quot; }) + &quot;\n&quot;, { mode: 0o600 });
+    assert.throws(() =&gt; getEndpoint(), /valor ausente/);
+  });
+});
+
+test(&quot;EP_SENDRPC_REJECT_BEFORE_FETCH&quot;, async () =&gt; {
+  let called = false, err;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = () =&gt; { called = true; throw new Error(&quot;fetch called&quot;); };
+  try {
+    try {
+      await callTool(&quot;atlas.health&quot;, {}, { endpoint: &quot;https://user:pass@mcp.example.test/mcp?token=super-secret&quot;, token: &quot;tok&quot; });
+    } catch (e) { err = e; }
+    await assert.rejects(
+      () =&gt; callTool(&quot;atlas.health&quot;, {}, { endpoint: &quot;https://user:pass@mcp.example.test/mcp?token=super-secret&quot;, token: &quot;tok&quot; }),
+      /userinfo|consulta sensivel/
+    );
+    assert.equal(called, false);
+    assert.ok(!err.message.includes(&quot;super-secret&quot;));
+    assert.ok(!err.message.includes(&quot;tok&quot;));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+</pre></section><section><h2>tests/issue351_install_docs.test.js</h2><pre>import { readFileSync } from &#x27;node:fs&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { dirname, join } from &#x27;node:path&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const root = join(dirname(fileURLToPath(import.meta.url)), &#x27;..&#x27;);
+const readme = readFileSync(join(root, &#x27;README.md&#x27;), &#x27;utf8&#x27;);
+
+test(&#x27;INSTALL_NO_PUBLIC&#x27;, () =&gt; {
+  assert.match(readme, /Node &gt;=18/);
+  assert.match(readme, /publicação pública ainda não existe.*não foi executada/i);
+  assert.match(readme, /npm run release:pack/);
+  assert.match(readme, /sha256sum -c/);
+  assert.match(readme, /npm install -g \.\/dist\/megabrain-cli-4\.0\.0\.tgz/);
+  assert.doesNotMatch(readme, /npm install -g dist\/megabrain-cli-4\.0\.0\.tgz/);
+  assert.match(readme, /MEGABRAIN_ENDPOINT/);
+  assert.match(readme, /rollback por reinstalar versão anterior/i);
+  assert.doesNotMatch(readme, /npm install -g @megabrain\/cli/);
+  assert.doesNotMatch(readme, new RegExp([&#x27;Luiz&#x27;, &#x27;Karlos&#x27;].join(&#x27;&#x27;)));
+});
+
+test(&#x27;INSTALL_SCRIPTS&#x27;, () =&gt; {
+  assert.match(readme, /local SHA-256 chain only/);
+  assert.match(readme, /local regex outline/);
+  assert.match(readme, /JSON\/flags/);
+  assert.doesNotMatch(readme, /wcag_check\.js style\.css/);
+});
+
+test(&#x27;INSTALL_VERSION&#x27;, () =&gt; {
+  assert.match(readme, /4\.0\.0/);
+  assert.match(readme, /megabrain --version/);
+});
+</pre></section><section><h2>tests/issue351_ledger_envelope.test.js</h2><pre>import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { computeBlockHash, verifyLedger } from &#x27;../scripts/merkle_verify.js&#x27;;
+
+test(&#x27;ENV_ROOT_SIG_INVALID&#x27;, () =&gt; {
+  const b = { index: 0, previous_hash: &#x27;0&#x27;, data: &#x27;x&#x27; };
+  b.hash = computeBlockHash(b);
+  const r = verifyLedger({ blocks: [b], merkle_root: &#x27;invalid&#x27;, signature: &#x27;invalid&#x27; });
+  assert.equal(r.valid, false);
+  assert.ok(r.errors.some((e) =&gt; /unsupported/i.test(e)));
+});
+
+test(&#x27;ENV_LINEAR_OK&#x27;, () =&gt; {
+  const b = { index: 0, previous_hash: &#x27;0&#x27;, data: &#x27;x&#x27; };
+  b.hash = computeBlockHash(b);
+  assert.equal(verifyLedger([b]).valid, true);
+});
+test(&#x27;ENV_ALLOWLIST_WRAPPER&#x27;, () =&gt; {
+  const b = { index: 0, previous_hash: &#x27;0&#x27;, data: &#x27;x&#x27; };
+  b.hash = computeBlockHash(b);
+  for (const env of [
+    { blocks: [b], attestation: &#x27;X&#x27; },
+    { blocks: [b], receipt: &#x27;X&#x27; },
+    { blocks: [b], certificate: &#x27;X&#x27; },
+    { blocks: [b], extra: 1 },
+  ]) {
+    const r = verifyLedger(env);
+    assert.equal(r.valid, false);
+    assert.ok(r.errors.some((e) =&gt; /unsupported/i.test(e)));
+  }
+  assert.equal(verifyLedger({ blocks: [b] }).valid, true);
+  assert.equal(verifyLedger([b]).valid, true);
+});
+</pre></section><section><h2>tests/issue351_ledger_genesis.test.js</h2><pre>import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { computeBlockHash, verifyLedger } from &#x27;../scripts/merkle_verify.js&#x27;;
+
+function mk(index, prev, data = &#x27;x&#x27;) {
+  const b = { index, previous_hash: prev, data };
+  b.hash = computeBlockHash(b);
+  return b;
+}
+
+test(&#x27;GENESIS_F64_INVALID&#x27;, () =&gt; {
+  assert.equal(verifyLedger([mk(0, &#x27;f&#x27;.repeat(64))]).valid, false);
+});
+
+test(&#x27;GENESIS_INDEX42_INVALID&#x27;, () =&gt; {
+  assert.equal(verifyLedger([mk(42, &#x27;0&#x27;)]).valid, false);
+});
+
+test(&#x27;GENESIS_ZERO_OK&#x27;, () =&gt; {
+  assert.equal(verifyLedger([mk(0, &#x27;0&#x27;.repeat(64))]).valid, true);
+});
+
+test(&#x27;GENESIS_MISSING_INDEX_INVALID&#x27;, () =&gt; { const b={previous_hash:&#x27;0&#x27;, data:&#x27;x&#x27;}; b.hash=computeBlockHash(b); assert.equal(verifyLedger([b]).valid, false); });
+
+test(&#x27;INDEX_STRING_COERCION_INVALID&#x27;, () =&gt; {
+  const g = mk(0, &#x27;0&#x27;.repeat(64));
+  assert.equal(verifyLedger([g, mk(&#x27;1&#x27;, g.hash)]).valid, false);
+});
+
+test(&#x27;INDEX_NULL_INVALID&#x27;, () =&gt; {
+  const g = mk(0, &#x27;0&#x27;.repeat(64));
+  assert.equal(verifyLedger([mk(null, &#x27;0&#x27;.repeat(64))]).valid, false);
+  assert.equal(verifyLedger([g, mk(null, g.hash)]).valid, false);
+});
+
+test(&#x27;INDEX_FLOAT_INVALID&#x27;, () =&gt; {
+  const g = mk(0, &#x27;0&#x27;.repeat(64));
+  assert.equal(verifyLedger([g, mk(1.5, g.hash)]).valid, false);
+});
+
+test(&#x27;INDEX_UNSAFE_INTEGER_INVALID&#x27;, () =&gt; {
+  const g = mk(0, &#x27;0&#x27;.repeat(64));
+  assert.equal(verifyLedger([g, mk(Number.MAX_SAFE_INTEGER + 1, g.hash)]).valid, false);
+});
+
+test(&#x27;INDEX_VALID_SEQUENCE_OK&#x27;, () =&gt; {
+  const g = mk(0, &#x27;0&#x27;.repeat(64));
+  assert.equal(verifyLedger([g, mk(1, g.hash)]).valid, true);
+});
+</pre></section><section><h2>tests/issue351_parser.test.js</h2><pre>import assert from &#x27;node:assert/strict&#x27;;
+import { spawnSync } from &#x27;node:child_process&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+
+const BIN = fileURLToPath(new URL(&#x27;../bin/megabrain.js&#x27;, import.meta.url));
+
+function runCli(args) {
+  return spawnSync(process.execPath, [BIN, ...args], { encoding: &#x27;utf8&#x27; });
+}
+
+test(&#x27;PARSER_BOGUS: unknown flag is rejected by the native parser&#x27;, () =&gt; {
+  const result = runCli([&#x27;--bogus&#x27;]);
+  assert.notStrictEqual(result.status, 0, `expected non-zero exit, got ${result.status}`);
+  assert.match(result.stderr, /--bogus/);
+});
+
+test(&#x27;PARSER_WAIT: removed --wait flag is rejected by the native parser&#x27;, () =&gt; {
+  const result = runCli([&#x27;status&#x27;, &#x27;--wait&#x27;]);
+  assert.notStrictEqual(result.status, 0, `expected non-zero exit, got ${result.status}`);
+  assert.match(result.stderr, /--wait/);
+});
+
+test(&#x27;PARSER_HELP_NO_WAIT: help output does not advertise --wait&#x27;, () =&gt; {
+  const result = runCli([&#x27;--help&#x27;]);
+  assert.strictEqual(result.status, 0, `expected zero exit, got ${result.status}`);
+  assert.match(result.stdout, /Usage:/);
+  assert.doesNotMatch(result.stdout, /--wait/);
+});
+
+test(&quot;PARSER_TOKEN_NO_VALUE&quot;, () =&gt; {
+  const result = runCli([&quot;--token&quot;, &quot;secret-parser-377&quot;]);
+  assert.notStrictEqual(result.status, 0);
+  assert.ok(!result.stdout.includes(&quot;secret-parser-377&quot;));
+  assert.ok(!result.stderr.includes(&quot;secret-parser-377&quot;));
+});
+
+test(&quot;PARSER_VALID_FLAGS_REACH&quot;, () =&gt; {
+  const result = runCli([&quot;--version&quot;, &quot;--dest&quot;, &quot;/tmp&quot;, &quot;--write-mcp&quot;, &quot;--json&quot;]);
+  assert.strictEqual(result.status, 0);
+  assert.match(result.stdout, /[0-9]/);
+});
+
+test(&quot;PARSER_HELP_IMPLEMENTED_ONLY&quot;, () =&gt; {
+  const result = runCli([&quot;--help&quot;]);
+  assert.strictEqual(result.status, 0);
+  assert.match(result.stdout, /--dest/);
+  assert.match(result.stdout, /--write-mcp/);
+  assert.match(result.stdout, /--json/);
+  assert.match(result.stdout, /--endpoint/);
+  assert.doesNotMatch(result.stdout, /--wait/);
+  assert.doesNotMatch(result.stdout, /--token/);
+});
+</pre></section><section><h2>tests/issue351_setup_endpoint.test.js</h2><pre>import fs from &quot;node:fs&quot;;
+import path from &quot;node:path&quot;;
+import os from &quot;node:os&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { test } from &quot;node:test&quot;;
+import { run } from &quot;../src/commands/setup.js&quot;;
+
+test(&quot;SETUP_INVALID_ENDPOINT: rejeita token na query antes de criar dest&quot;, async () =&gt; {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), &quot;setup-inv-&quot;));
+  const dest = path.join(tmp, &quot;dest&quot;);
+  try {
+    await assert.rejects(
+      () =&gt; run({ flags: { endpoint: &quot;https://mcp.atlascommand.dev/mcp?token=abc&quot;, dest } }),
+      /parametro de consulta sensivel nao permitido/
+    );
+    assert.equal(fs.existsSync(dest), false);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test(&quot;SETUP_VALID_ENDPOINT: isola cwd e usa mock fetch sem tocar workspace real&quot;, async () =&gt; {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), &quot;setup-val-&quot;));
+  const [prevCwd, prevFetch, prevLog, prevExit] = [process.cwd(), globalThis.fetch, console.log, process.exitCode];
+  process.chdir(tmp);
+  console.log = () =&gt; {};
+  globalThis.fetch = async () =&gt; new Response(JSON.stringify({ status: &quot;ok&quot; }), { status: 200, headers: { &quot;content-type&quot;: &quot;application/json&quot; } });
+  try {
+    const report = await run({ flags: { endpoint: &quot;http://127.0.0.1:9000/mcp&quot;, json: true } });
+    assert.equal(report.connectivity.endpoint, &quot;http://127.0.0.1:9000/mcp&quot;);
+    assert.equal(report.connectivity.connected, true);
+    assert.equal(fs.existsSync(path.join(tmp, &quot;.agents&quot;, &quot;skills&quot;)), true);
+  } finally {
+    process.chdir(prevCwd);
+    globalThis.fetch = prevFetch;
+    console.log = prevLog;
+    process.exitCode = prevExit;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+  assert.equal(fs.existsSync(path.join(prevCwd, &quot;.agents&quot;)), false);
+});
+</pre></section><section><h2>tests/issue351_setup_exit.test.js</h2><pre>import assert from &quot;node:assert/strict&quot;;
+import { test } from &quot;node:test&quot;;
+import { spawnSync, spawn } from &quot;node:child_process&quot;;
+import { fileURLToPath } from &quot;node:url&quot;;
+import { dirname, join } from &quot;node:path&quot;;
+import os from &quot;node:os&quot;;
+import fs from &quot;node:fs&quot;;
+import http from &quot;node:http&quot;;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const BIN = join(__dirname, &quot;..&quot;, &quot;bin&quot;, &quot;megabrain.js&quot;);
+
+function runSetup(dest, extra, env) {
+  return spawnSync(process.execPath, [BIN, &quot;setup&quot;, &quot;--json&quot;, &quot;--dest&quot;, dest, ...extra], {
+    encoding: &quot;utf8&quot;,
+    timeout: 8000,
+    env: { ...process.env, ...env }
+  });
+}
+
+test(&quot;SETUP_DEGRADED_EXIT&quot;, () =&gt; {
+  const dest = fs.mkdtempSync(join(os.tmpdir(), &quot;mb376-&quot;));
+  try {
+    const result = runSetup(dest, [&quot;--endpoint&quot;, &quot;http://127.0.0.1:1&quot;], { MEGABRAIN_TOKEN: &quot;sec-offline&quot; });
+    assert.notEqual(result.status, 0);
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.status, &quot;degraded&quot;);
+    assert.equal(parsed.connectivity.connected, false);
+    assert.equal(fs.existsSync(join(dest, &quot;megabrain.mcp.json&quot;)), false);
+    assert.ok(!result.stdout.includes(&quot;sec-offline&quot;));
+  } finally {
+    fs.rmSync(dest, { recursive: true, force: true });
+  }
+});
+
+test(&quot;SETUP_WRITE_MCP_NO_SECRET&quot;, () =&gt; {
+  const dest = fs.mkdtempSync(join(os.tmpdir(), &quot;mb376w-&quot;));
+  try {
+    const result = runSetup(dest, [&quot;--write-mcp&quot;, &quot;--endpoint&quot;, &quot;http://127.0.0.1:1&quot;], { MEGABRAIN_TOKEN: &quot;sec-write&quot; });
+    assert.notEqual(result.status, 0);
+    const cfg = join(dest, &quot;megabrain.mcp.json&quot;);
+    assert.equal(fs.existsSync(cfg), true);
+    const data = JSON.parse(fs.readFileSync(cfg, &quot;utf8&quot;));
+    assert.equal(data.mcpServers.atlas.headers.Authorization, &quot;Bearer ${MEGABRAIN_TOKEN}&quot;);
+    assert.ok(!result.stdout.includes(&quot;sec-write&quot;));
+    assert.ok(!JSON.stringify(data).includes(&quot;sec-write&quot;));
+  } finally {
+    fs.rmSync(dest, { recursive: true, force: true });
+  }
+});
+
+test(&quot;SETUP_HEALTHY_EXIT0&quot;, async () =&gt; {
+  const dest = fs.mkdtempSync(join(os.tmpdir(), &quot;mb376ok-&quot;));
+  const server = http.createServer((req, res) =&gt; {
+    res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+    res.end(JSON.stringify({ status: &quot;READY&quot; }));
+  });
+  await new Promise((resolve) =&gt; server.listen(0, &quot;127.0.0.1&quot;, resolve));
+  const { port } = server.address();
+  try {
+    const result = await new Promise((resolve, reject) =&gt; {
+      const child = spawn(process.execPath, [BIN, &quot;setup&quot;, &quot;--json&quot;, &quot;--dest&quot;, dest, &quot;--endpoint&quot;, `http://127.0.0.1:${port}`], { env: process.env });
+      let stdout = &quot;&quot;;
+      child.stdout.on(&quot;data&quot;, (d) =&gt; { stdout += d; });
+      child.on(&quot;error&quot;, reject);
+      child.on(&quot;close&quot;, (status) =&gt; resolve({ status, stdout }));
+    });
+    assert.equal(result.status, 0);
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.status, &quot;ok&quot;);
+    assert.equal(parsed.connectivity.connected, true);
+  } finally {
+    server.close();
+    fs.rmSync(dest, { recursive: true, force: true });
+  }
+});
+test(&quot;SETUP_READINESS_DEGRADED_EXIT&quot;, async () =&gt; {
+  let currentBody = {};
+  const server = http.createServer((req, res) =&gt; {
+    res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+    res.end(JSON.stringify(currentBody));
+  });
+  await new Promise((r) =&gt; server.listen(0, &quot;127.0.0.1&quot;, r));
+  const { port } = server.address();
+  const cases = [
+    { status: &quot;ERROR&quot; },
+    { status: &quot;DEGRADED&quot; },
+    { status: &quot;NOT_READY&quot; },
+    { status: &quot;READY&quot;, ready: false },
+    { status: &quot;READY&quot;, kernel_ready: false },
+    { status: &quot;READY&quot;, isError: true }
+  ];
+  const dests = [];
+  try {
+    for (const body of cases) {
+      currentBody = body;
+      const dest = fs.mkdtempSync(join(os.tmpdir(), &quot;mb445d-&quot;));
+      dests.push(dest);
+      const res = await new Promise((resolve, reject) =&gt; {
+        const c = spawn(process.execPath, [BIN, &quot;setup&quot;, &quot;--json&quot;, &quot;--dest&quot;, dest, &quot;--endpoint&quot;, `http://127.0.0.1:${port}`], { env: process.env });
+        let out = &quot;&quot;;
+        c.stdout.on(&quot;data&quot;, (d) =&gt; { out += d; });
+        c.on(&quot;error&quot;, reject);
+        c.on(&quot;close&quot;, (status) =&gt; resolve({ status, out }));
+      });
+      assert.notEqual(res.status, 0);
+      assert.equal(JSON.parse(res.out).status, &quot;degraded&quot;);
+    }
+  } finally {
+    server.close();
+    for (const d of dests) fs.rmSync(d, { recursive: true, force: true });
+  }
+});
+</pre></section><section><h2>tests/issue351_status_health.test.js</h2><pre>import test from &quot;node:test&quot;;
+import assert from &quot;node:assert&quot;;
+import http from &quot;node:http&quot;;
+import { execFile } from &quot;node:child_process&quot;;
+
+test(&quot;cli status health classification and exit codes&quot;, async () =&gt; {
+  let handler;
+  const server = http.createServer((req, res) =&gt; handler(req, res));
+  await new Promise((r) =&gt; server.listen(0, &quot;127.0.0.1&quot;, r));
+  const endpoint = `http://127.0.0.1:${server.address().port}/mcp`;
+
+  const runCli = (args = []) =&gt;
+    new Promise((resolve) =&gt; {
+      execFile(process.execPath, [&quot;bin/megabrain.js&quot;, &quot;status&quot;, &quot;--endpoint&quot;, endpoint, ...args], (err, stdout) =&gt; {
+        resolve({ code: err ? err.code : 0, stdout: stdout || &quot;&quot; });
+      });
+    });
+
+  try {
+    // 1. 404 + isError fallback
+    handler = (req, res) =&gt; {
+      if (req.url === &quot;/health&quot;) return res.writeHead(404).end();
+      let b = &quot;&quot;;
+      req.on(&quot;data&quot;, (c) =&gt; (b += c));
+      req.on(&quot;end&quot;, () =&gt; {
+        const id = JSON.parse(b || &quot;{}&quot;).id ?? null;
+        res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+        res.end(JSON.stringify({ jsonrpc: &quot;2.0&quot;, id, result: { isError: true, content: [&quot;fail&quot;] } }));
+      });
+    };
+    const c1 = await runCli([&quot;--json&quot;]);
+    const d1 = JSON.parse(c1.stdout);
+    assert.strictEqual(c1.code, 1);
+    assert.strictEqual(d1.status, &quot;error&quot;);
+    assert.strictEqual(d1.health?.isError, true);
+
+    // 2. DEGRADED/ready=false
+    handler = (_req, res) =&gt; {
+      res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+      res.end(JSON.stringify({ status: &quot;DEGRADED&quot;, ready: false }));
+    };
+    const c2 = await runCli([&quot;--json&quot;]);
+    const d2 = JSON.parse(c2.stdout);
+    assert.strictEqual(c2.code, 1);
+    assert.strictEqual(d2.status, &quot;DEGRADED&quot;);
+    assert.strictEqual(d2.health?.ready, false);
+
+    // 3. READY exit0
+    handler = (_req, res) =&gt; {
+      res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+      res.end(JSON.stringify({ status: &quot;READY&quot;, ready: true }));
+    };
+    const c3 = await runCli([&quot;--json&quot;]);
+    const d3 = JSON.parse(c3.stdout);
+    assert.strictEqual(c3.code, 0);
+    assert.strictEqual(d3.status, &quot;READY&quot;);
+
+    // 4. objeto insuficiente não-ok
+    handler = (_req, res) =&gt; {
+      res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+      res.end(JSON.stringify({}));
+    };
+    const c4 = await runCli([&quot;--json&quot;]);
+    const d4 = JSON.parse(c4.stdout);
+    assert.strictEqual(c4.code, 1);
+    assert.strictEqual(d4.status, &quot;error&quot;);
+
+    // 5. HEALTHY + kernel_ready=false
+    handler = (_req, res) =&gt; {
+      res.writeHead(200, { &quot;content-type&quot;: &quot;application/json&quot; });
+      res.end(JSON.stringify({ status: &quot;HEALTHY&quot;, kernel_ready: false }));
+    };
+    const c5 = await runCli([&quot;--json&quot;]);
+    assert.strictEqual(c5.code, 1);
+  } finally {
+    server.close();
+  }
+});
+</pre></section><section><h2>tests/issue351_surface_reference.test.js</h2><pre>import test from &quot;node:test&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import fs from &quot;node:fs&quot;;
+
+const CANONICAL = [
+  &quot;atlas.health&quot;, &quot;atlas.create_account&quot;, &quot;atlas.issue_api_key&quot;, &quot;atlas.rotate_api_key&quot;,
+  &quot;atlas.list_api_keys&quot;, &quot;atlas.revoke_api_key&quot;, &quot;atlas.create_project&quot;, &quot;atlas.list_projects&quot;,
+  &quot;atlas.get_project&quot;, &quot;atlas.archive_project&quot;, &quot;atlas.register_check_manifest&quot;,
+  &quot;atlas.list_check_manifests&quot;, &quot;atlas.create_mission&quot;, &quot;atlas.list_missions&quot;,
+  &quot;atlas.get_mission&quot;, &quot;atlas.archive_mission&quot;, &quot;atlas.claim_task&quot;, &quot;atlas.renew_task_lease&quot;,
+  &quot;atlas.submit_task_result&quot;, &quot;atlas.submit_task_review&quot;, &quot;atlas.begin_upload&quot;,
+  &quot;atlas.complete_upload&quot;, &quot;atlas.request_verification&quot;, &quot;atlas.get_verification&quot;,
+  &quot;atlas.verify_and_attest&quot;, &quot;atlas.export_evidence&quot;, &quot;atlas.get_usage&quot;
+];
+
+function extractCalls(markdown) {
+  const pattern = /megabrain call ([\w.]+) &#x27;([^&#x27;]+)&#x27;/g;
+  const calls = {};
+  for (const match of markdown.matchAll(pattern)) {
+    calls[match[1]] = JSON.parse(match[2]);
+  }
+  return calls;
+}
+
+test(&quot;atlas surface catalog 27/27&quot;, () =&gt; {
+  const fullDoc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const pkg = JSON.parse(fs.readFileSync(&quot;package.json&quot;, &quot;utf8&quot;));
+  assert.ok(pkg.files &amp;&amp; pkg.files.includes(&quot;megabrain-surface&quot;));
+  assert.ok(!fullDoc.includes(&quot;megabrain call megabrain.recommend&quot;));
+  assert.ok(!fullDoc.includes(&quot;megabrain call megabrain.infer&quot;));
+  assert.ok(!fullDoc.includes(&quot;megabrain call megabrain.orchestrate&quot;));
+  const calls = extractCalls(fullDoc.split(&quot;## Aliases underscore&quot;)[0]);
+  for (const tool of CANONICAL) {
+    assert.ok(tool in calls, &quot;missing call &quot; + tool);
+  }
+  assert.deepEqual(Object.keys(calls[&quot;atlas.health&quot;]), []);
+  assert.deepEqual(Object.keys(calls[&quot;atlas.create_project&quot;]), [&quot;name&quot;]);
+  assert.ok(calls[&quot;atlas.create_mission&quot;].project_id &amp;&amp; calls[&quot;atlas.create_mission&quot;].mission_id &amp;&amp; Array.isArray(calls[&quot;atlas.create_mission&quot;].tasks));
+  assert.ok(calls[&quot;atlas.claim_task&quot;].project_id);
+  assert.ok(calls[&quot;atlas.request_verification&quot;].snapshot_b64);
+  assert.ok(calls[&quot;atlas.export_evidence&quot;].project_id &amp;&amp; calls[&quot;atlas.export_evidence&quot;].mission_id);
+  assert.ok(calls[&quot;atlas.get_usage&quot;].project_id);
+});
+
+test(&quot;atlas surface aliases 27/27&quot;, () =&gt; {
+  const fullDoc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const aliasSection = fullDoc.split(&quot;## Aliases underscore — 27/27&quot;)[1];
+  assert.ok(aliasSection, &quot;alias section exists&quot;);
+  const pairs = [...aliasSection.matchAll(/(atlas\.([a-z0-9_]+))\s*-&gt;\s*(atlas_([a-z0-9_]+))/g)];
+  assert.equal(pairs.length, 27, &quot;must contain exactly 27 alias pairs&quot;);
+  const canonicalSet = new Set(pairs.map((p) =&gt; p[1]));
+  const aliasSet = new Set(pairs.map((p) =&gt; p[3]));
+  assert.equal(canonicalSet.size, 27, &quot;27 unique canonical tools&quot;);
+  assert.equal(aliasSet.size, 27, &quot;27 unique alias tools&quot;);
+  for (const match of pairs) {
+    const [, canonical, canonTool, alias] = match;
+    assert.equal(alias, `atlas_${canonical.slice(&quot;atlas.&quot;.length)}`);
+    assert.equal(alias, `atlas_${canonTool}`);
+  }
+  const exampleMatch = aliasSection.match(/megabrain call (atlas_health)\s*&#x27;([^&#x27;]+)&#x27;/);
+  assert.ok(exampleMatch, &quot;example call exists&quot;);
+  assert.deepEqual(JSON.parse(exampleMatch[2]), {});
+  assert.ok(aliasSection.includes(&quot;atlas.&quot;), &quot;mentions atlas. rejection&quot;);
+  assert.ok(aliasSection.includes(&quot;atlas..health&quot;), &quot;mentions atlas..health rejection&quot;);
+  assert.match(aliasSection, /string vazia/i, &quot;mentions string vazia rejection&quot;);
+});
+
+test(&quot;atlas surface resources empty&quot;, () =&gt; {
+  const fullDoc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const resourceSection = fullDoc.split(&quot;## Resources — parte 4&quot;)[1];
+  assert.ok(resourceSection, &quot;resource section exists&quot;);
+  assert.match(resourceSection, /não publica resources/i);
+  assert.match(resourceSection, /megabrain call[\s\S]*?NAO le[\s\S]*?resources/i);
+  assert.match(resourceSection, /POST \/mcp.*Bearer/i);
+});
+
+test(&quot;atlas surface prompts empty&quot;, () =&gt; {
+  const fullDoc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const section = fullDoc.split(&quot;## Prompts — parte 5&quot;)[1];
+  assert.ok(section, &quot;prompts section exists&quot;);
+  assert.match(section, /não publica prompts/i);
+  assert.match(section, /megabrain call[\s\S]*?NAO executa[\s\S]*?prompts/i);
+  assert.match(section, /POST \/mcp.*Bearer/i);
+});
+
+test(&quot;atlas identity USER/ADMIN not six roles&quot;, () =&gt; {
+  const fullDoc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const section = fullDoc.split(&quot;## Identidade (substitui Roles)&quot;)[1].split(&quot;## Transportes e autenticação&quot;)[0];
+  assert.ok(section, &quot;identity section exists&quot;);
+  assert.match(section, /`USER`/);
+  assert.match(section, /`ADMIN`/);
+  assert.match(section, /zero providers\/models/);
+  assert.match(section, /n[ãa]o executa infer[êe]ncia/);
+  assert.doesNotMatch(section, /^- `mission_compiler` —/m);
+});
+
+test(&quot;atlas surface transports and authentication&quot;, () =&gt; {
+  const doc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const sec = doc.split(&quot;## Transportes e autenticação&quot;)[1];
+  assert.ok(sec, &quot;section Transportes e autenticação exists&quot;);
+  assert.match(sec, /Streamable HTTP[\s\S]*?POST \/mcp/);
+  assert.match(sec, /http:\/\/127\.0\.0\.1:20130\/mcp/);
+  assert.match(sec, /https:\/\/mcp\.atlascommand\.dev\/mcp/);
+  assert.match(sec, /sem `call_tool` in-process/);
+  for (const h of [&quot;Content-Type: application/json&quot;, &quot;Accept: application/json, text/event-stream&quot;, &quot;MCP-Protocol-Version: 2026-07-28&quot;, &quot;Mcp-Method&quot;, &quot;Mcp-Name&quot;]) {
+    assert.ok(sec.includes(h), `header ${h} missing`);
+  }
+  assert.match(sec, /Authorization: Bearer/);
+  for (const m of [&quot;io.modelcontextprotocol/protocolVersion&quot;, &quot;clientCapabilities&quot;, &quot;clientInfo&quot;]) {
+    assert.ok(sec.includes(m), `meta field ${m} missing`);
+  }
+  assert.ok(sec.includes(&quot;2026-07-28&quot;), &quot;must contain protocol version 2026-07-28&quot;);
+  for (const q of [&quot;?token=&quot;, &quot;?key=&quot;, &quot;?bearer=&quot;]) assert.ok(sec.includes(q), `query ${q} missing`);
+  assert.match(sec, /rejeitados com HTTP 401/);
+  assert.match(sec, /mb_user_session/);
+  assert.match(sec, /mb_admin_session/);
+  assert.match(sec, /n[ãa]o autenticam/);
+  const match = sec.match(/-d &#x27;(\{[\s\S]*?\})&#x27;/);
+  assert.ok(match, &quot;curl payload found&quot;);
+  const payload = JSON.parse(match[1]);
+  assert.strictEqual(payload.method, &quot;tools/list&quot;);
+  assert.strictEqual(payload.params?._meta?.[&quot;io.modelcontextprotocol/protocolVersion&quot;], &quot;2026-07-28&quot;);
+  assert.ok(payload.params?._meta?.[&quot;io.modelcontextprotocol/clientCapabilities&quot;]);
+  assert.ok(payload.params?._meta?.[&quot;io.modelcontextprotocol/clientInfo&quot;]);
+  const curlBlock = sec.match(/```bash\n([\s\S]*?)```/)?.[1] || &quot;&quot;;
+  assert.ok(curlBlock.includes(&quot;Bearer ${MEGABRAIN_TOKEN}&quot;));
+  assert.ok(!curlBlock.includes(&quot;MEG...KEN&quot;));
+  assert.ok(!curlBlock.includes(&quot;\\${&quot;));
+});
+
+test(&quot;atlas surface observability&quot;, () =&gt; {
+  const doc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const sec = doc.split(&quot;## Observabilidade&quot;)[1];
+  assert.ok(sec, &quot;observability section exists&quot;);
+  const section = sec.split(&quot;### Notificações de progresso&quot;)[0];
+  assert.match(section, /\/metrics/);
+  assert.match(section, /sem auth/);
+  assert.doesNotMatch(section, /auth obrigat[oó]ria/i);
+  for (const m of [
+    &quot;megabrain_tool_calls_total&quot;, &quot;megabrain_arm_calls_total&quot;, &quot;megabrain_errors_total&quot;,
+    &quot;megabrain_tool_errors_total&quot;, &quot;megabrain_tool_duration_seconds_bucket&quot;,
+    &quot;megabrain_tool_duration_seconds_sum&quot;, &quot;megabrain_tool_duration_seconds_count&quot;,
+    &quot;megabrain_tool_duration_seconds_total&quot;
+  ]) {
+    assert.ok(sec.includes(m), &quot;missing metric &quot; + m);
+  }
+  const jsonMatch = sec.match(/```json\n([\s\S]*?)\n```/);
+  assert.ok(jsonMatch, &quot;json progress notification exists&quot;);
+  const notif = JSON.parse(jsonMatch[1]);
+  assert.equal(notif.method, &quot;notifications/progress&quot;);
+  assert.equal(notif.id, undefined);
+  assert.ok(notif.params?.progressToken &amp;&amp; notif.params?.progress &amp;&amp; notif.params?.total &amp;&amp; notif.params?.message);
+  assert.match(sec, /progresso antes do resultado/);
+  for (const f of [&quot;total_calls&quot;, &quot;total_errors&quot;, &quot;tool_distribution&quot;, &quot;uptime_seconds&quot;]) {
+    assert.ok(sec.includes(f), &quot;missing field &quot; + f);
+  }
+  assert.match(sec, /Contadores vivos vs snapshot/);
+  assert.match(sec, /sem SLA sem medi[çc][ãa]o/);
+});
+
+test(&quot;atlas surface error contract&quot;, async () =&gt; {
+  const doc = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  const sec = doc.split(&quot;## Contrato de erro&quot;)[1];
+  assert.ok(sec, &quot;error contract section exists&quot;);
+  const codes = [
+    &quot;INVALID_ARGUMENT&quot;, &quot;INVALID_ENDPOINT&quot;, &quot;NO_EXECUTABLE_ROUTE&quot;, &quot;FALLBACK_NOT_SUPPORTED&quot;,
+    &quot;INSUFFICIENT_EVIDENCE&quot;, &quot;NOT_EXECUTED&quot;, &quot;NOT_DISPATCHED&quot;, &quot;UNAUTHORIZED_RELEASE&quot;,
+    &quot;MISSION_NOT_FOUND&quot;, &quot;EXECUTION_FAILURE&quot;, &quot;DEPENDENCY_BLOCKED&quot;, &quot;LOCK_ACQUISITION_FAILED&quot;, &quot;TIMEOUT_EXCEEDED&quot;
+  ];
+  for (const c of codes) assert.ok(sec.includes(c), &quot;missing code: &quot; + c);
+  assert.ok(sec.includes(&quot;^[A-Z][A-Z0-9_]{0,63}$&quot;));
+  assert.ok(sec.includes(&quot;TOOL_ERROR&quot;));
+  const ok = JSON.parse(sec.match(/\{&quot;status&quot;:&quot;completed&quot;\}/)[0]);
+  const err = JSON.parse(sec.match(/\{&quot;status&quot;:&quot;error&quot;,&quot;error_code&quot;:&quot;INVALID_ENDPOINT&quot;\}/)[0]);
+  assert.equal(ok.status, &quot;completed&quot;);
+  assert.equal(err.status, &quot;error&quot;);
+  assert.equal(err.error_code, &quot;INVALID_ENDPOINT&quot;);
+  const { isBusinessFailure } = await import(&quot;../src/commands/call.js&quot;);
+  assert.equal(isBusinessFailure({ isError: true }), true);
+  assert.equal(isBusinessFailure({ status: &quot;error&quot; }), true);
+  assert.equal(isBusinessFailure({ structuredContent: { status: &quot;error&quot; } }), true);
+  assert.equal(isBusinessFailure({ structuredContent: { error_code: &quot;EXECUTION_FAILURE&quot; } }), true);
+  assert.equal(isBusinessFailure({ content: [{ type: &quot;text&quot;, text: &quot;{\&quot;status\&quot;:\&quot;error\&quot;}&quot; }] }), true);
+  assert.equal(isBusinessFailure({ content: [{ type: &quot;text&quot;, text: &quot;{\&quot;error_code\&quot;:\&quot;TOOL_ERROR\&quot;}&quot; }] }), true);
+  assert.equal(isBusinessFailure({ status: &quot;completed&quot; }), false);
+  assert.equal(isBusinessFailure({ content: [{ type: &quot;text&quot;, text: &quot;Healthy plain text&quot; }] }), false);
+});
+
+test(&quot;test_mcp_surface_coverage_closure&quot;, async () =&gt; {
+  const { execSync } = await import(&quot;node:child_process&quot;);
+  assert.equal(CANONICAL.length, 27, &quot;27 tools no manifest canonical&quot;);
+  const files = fs.readdirSync(&quot;.&quot;, { recursive: true }).filter((f) =&gt; f.endsWith(&quot;.md&quot;) &amp;&amp; !f.includes(&quot;node_modules&quot;));
+  const regex = /megabrain call (atlas[._][a-z0-9_]+) &#x27;([^&#x27;]+)&#x27;/g;
+  const found = new Map();
+  for (const file of files) {
+    const text = fs.readFileSync(file, &quot;utf8&quot;);
+    for (const match of text.matchAll(regex)) {
+      const tool = match[1].replace(/^atlas_/, &quot;atlas.&quot;);
+      const parsed = JSON.parse(match[2]);
+      if (!found.has(tool)) found.set(tool, []);
+      found.get(tool).push(parsed);
+    }
+  }
+  for (const tool of CANONICAL) {
+    assert.ok(found.has(tool), &quot;tool ausente nos docs: &quot; + tool);
+  }
+  assert.equal(found.size, 27, &quot;27/27 presentes&quot;);
+  const kPath = process.env.MEGABRAIN_KERNEL_SOURCE || &quot;/srv/megabrain-dev/repository/runtime/atlas_mcp_server.py&quot;;
+  if (fs.existsSync(kPath)) {
+    const py = &#x27;python3 - &lt;&lt;PY\nimport ast, json, re\ntree = ast.parse(open(&quot;&#x27; + kPath + &#x27;&quot;).read())\nsigs = {}\nfor n in ast.walk(tree):\n    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith(&quot;atlas_&quot;):\n        sigs[n.name] = [a.arg for a in n.args.args if a.arg not in (&quot;self&quot;,)]\nprint(json.dumps(sigs))\nPY&#x27;;
+    const sigs = JSON.parse(execSync(py, { encoding: &quot;utf8&quot; }));
+    for (const tool of CANONICAL) {
+      const bare = &quot;atlas_&quot; + tool.replace(/^atlas\./, &quot;&quot;);
+      const allowed = sigs[bare];
+      assert.ok(allowed, &quot;assinatura ausente: &quot; + tool);
+      for (const ex of found.get(tool) || []) {
+        if (typeof ex === &quot;object&quot; &amp;&amp; ex !== null &amp;&amp; !Array.isArray(ex)) {
+          for (const key of Object.keys(ex)) {
+            if (tool === &quot;atlas.complete_upload&quot; &amp;&amp; [&quot;data_text&quot;, &quot;data_base64&quot;, &quot;data_hex&quot;].includes(key)) continue;
+            assert.ok(allowed.includes(key) || [&quot;data_text&quot;, &quot;data_base64&quot;, &quot;data_hex&quot;].includes(key), `chave ${key} nao permitida para ${tool}`);
+          }
+        }
+      }
+    }
+  }
+  const surfaceSkill = fs.readFileSync(&quot;megabrain-surface/SKILL.md&quot;, &quot;utf8&quot;);
+  for (const topic of [&quot;resources&quot;, &quot;prompts&quot;, &quot;transports&quot;, &quot;metrics&quot;, &quot;errors&quot;]) {
+    assert.ok(new RegExp(topic, &quot;i&quot;).test(surfaceSkill), &quot;SKILL deve cobrir &quot; + topic);
+  }
+});
+</pre></section><section><h2>tests/issue351_transport.test.js</h2><pre>import test, { after } from &quot;node:test&quot;;
+import assert from &quot;node:assert/strict&quot;;
+import { callTool, listTools } from &quot;../src/client.js&quot;;
+
+const ENDPOINT = &quot;https://mcp.example.test/mcp&quot;;
+const TOKEN = &quot;secret-token-value&quot;;
+const PROTOCOL_VERSION = &quot;2026-07-28&quot;;
+
+const originalFetch = globalThis.fetch;
+after(() =&gt; {
+  globalThis.fetch = originalFetch;
+});
+
+function mockFetch(capture, resHandler) {
+  globalThis.fetch = async (url, init) =&gt; {
+    capture.url = String(url);
+    capture.init = init;
+    const reqId = init?.body ? JSON.parse(init.body).id : undefined;
+    if (resHandler) return resHandler(reqId, init);
+    return {
+      ok: true,
+      status: 200,
+      statusText: &quot;OK&quot;,
+      headers: {
+        get: (name) =&gt; (name.toLowerCase() === &quot;content-type&quot; ? &quot;application/json&quot; : null)
+      },
+      json: async () =&gt; ({ jsonrpc: &quot;2.0&quot;, id: reqId, result: { ok: true } })
+    };
+  };
+  return capture;
+}
+
+test(&quot;TR_HEADERS_HEALTH: tools/call sends contract headers and protocol _meta&quot;, async () =&gt; {
+  const capture = mockFetch({});
+
+  await callTool(&quot;atlas.health&quot;, {}, { endpoint: ENDPOINT, token: TOKEN });
+
+  const { headers } = capture.init;
+  assert.equal(headers[&quot;MCP-Protocol-Version&quot;], PROTOCOL_VERSION);
+  assert.equal(headers[&quot;Mcp-Method&quot;], &quot;tools/call&quot;);
+  assert.equal(headers[&quot;Mcp-Name&quot;], &quot;atlas.health&quot;);
+  assert.equal(headers[&quot;Authorization&quot;], `Bearer ${TOKEN}`);
+
+  const body = JSON.parse(capture.init.body);
+  assert.equal(body.method, &quot;tools/call&quot;);
+  assert.equal(body.params.name, &quot;atlas.health&quot;);
+  assert.equal(body.params._meta[&quot;io.modelcontextprotocol/protocolVersion&quot;], PROTOCOL_VERSION);
+  assert.equal(typeof body.params._meta[&quot;io.modelcontextprotocol/clientCapabilities&quot;], &quot;object&quot;);
+  assert.ok(body.params._meta[&quot;io.modelcontextprotocol/clientCapabilities&quot;] !== null);
+  assert.ok(!Array.isArray(body.params._meta[&quot;io.modelcontextprotocol/clientCapabilities&quot;]));
+  assert.ok(&quot;tools&quot; in body.params._meta[&quot;io.modelcontextprotocol/clientCapabilities&quot;]);
+});
+
+test(&quot;TR_HEADERS_LIST: tools/list sends contract headers without Mcp-Name&quot;, async () =&gt; {
+  const capture = mockFetch({});
+
+  await listTools({ endpoint: ENDPOINT, token: TOKEN });
+
+  const { headers } = capture.init;
+  assert.equal(headers[&quot;MCP-Protocol-Version&quot;], PROTOCOL_VERSION);
+  assert.equal(headers[&quot;Mcp-Method&quot;], &quot;tools/list&quot;);
+  assert.equal(headers[&quot;Mcp-Name&quot;], undefined);
+
+  const body = JSON.parse(capture.init.body);
+  assert.equal(body.method, &quot;tools/list&quot;);
+  assert.equal(body.params._meta[&quot;io.modelcontextprotocol/protocolVersion&quot;], PROTOCOL_VERSION);
+});
+
+test(&quot;TR_NO_TOKEN_IN_URL: bearer token never reaches the URL&quot;, async () =&gt; {
+  const capture = mockFetch({});
+
+  await callTool(&quot;atlas.health&quot;, {}, { endpoint: ENDPOINT, token: TOKEN });
+
+  assert.equal(capture.url, ENDPOINT);
+  assert.ok(!capture.url.includes(TOKEN));
+  assert.ok(!capture.url.toLowerCase().includes(&quot;token&quot;));
+  assert.ok(!capture.url.includes(&quot;?&quot;));
+  assert.equal(capture.init.headers[&quot;Authorization&quot;], `Bearer ${TOKEN}`);
+});
+
+
+test(&quot;TR_SSE_CORRELATED: ignores progress and foreign id, matches frame with CRLF/LF&quot;, async () =&gt; {
+  mockFetch({}, (id) =&gt; ({
+    ok: true,
+    status: 200,
+    headers: { get: (name) =&gt; (name.toLowerCase() === &quot;content-type&quot; ? &quot;text/event-stream&quot; : null) },
+    text: async () =&gt; [
+      &#x27;data: {&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;method&quot;:&quot;notifications/progress&quot;,&quot;params&quot;:{&quot;progress&quot;:50}}&#x27;,
+      &#x27;data: {&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:999,&quot;result&quot;:{&quot;wrong&quot;:true}}&#x27;,
+      `data: {&quot;jsonrpc&quot;:&quot;2.0&quot;,\r\ndata: &quot;id&quot;:${id},&quot;result&quot;:{&quot;toolResult&quot;:&quot;ok&quot;}}`
+    ].join(&quot;\r\n\r\n&quot;)
+  }));
+
+  const res = await callTool(&quot;atlas.health&quot;, {}, { endpoint: ENDPOINT, token: TOKEN });
+  assert.deepEqual(res, { toolResult: &quot;ok&quot; });
+});
+
+test(&quot;TR_SSE_NO_CORRELATED: fails explicitly when no correlated frame exists&quot;, async () =&gt; {
+  mockFetch({}, () =&gt; ({
+    ok: true,
+    status: 200,
+    headers: { get: (name) =&gt; (name.toLowerCase() === &quot;content-type&quot; ? &quot;text/event-stream&quot; : null) },
+    text: async () =&gt; &#x27;data: {&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;method&quot;:&quot;notifications/progress&quot;,&quot;params&quot;:{&quot;progress&quot;:100}}\n\n&#x27;
+  }));
+
+  await assert.rejects(
+    async () =&gt; callTool(&quot;atlas.health&quot;, {}, { endpoint: ENDPOINT, token: TOKEN }),
+    /Empty or invalid response/
+  );
+});
+
+test(&quot;TR_JSON_WRONG_ID: fails explicitly when simple JSON has mismatched id&quot;, async () =&gt; {
+  mockFetch({}, () =&gt; ({
+    ok: true,
+    status: 200,
+    headers: { get: (name) =&gt; (name.toLowerCase() === &quot;content-type&quot; ? &quot;application/json&quot; : null) },
+    json: async () =&gt; ({ jsonrpc: &quot;2.0&quot;, id: 999999, result: { ok: true } })
+  }));
+
+  await assert.rejects(
+    async () =&gt; callTool(&quot;atlas.health&quot;, {}, { endpoint: ENDPOINT, token: TOKEN }),
+    /Empty or invalid response/
+  );
+});
+
+test(&quot;TR_ERROR_PRESERVED: preserves RPC error from correlated response&quot;, async () =&gt; {
+  mockFetch({}, (id) =&gt; ({
+    ok: true,
+    status: 200,
+    headers: { get: (name) =&gt; (name.toLowerCase() === &quot;content-type&quot; ? &quot;application/json&quot; : null) },
+    json: async () =&gt; ({ jsonrpc: &quot;2.0&quot;, id, error: { code: -32601, message: &quot;Method not found&quot; } })
+  }));
+
+  await assert.rejects(
+    async () =&gt; callTool(&quot;atlas.health&quot;, {}, { endpoint: ENDPOINT, token: TOKEN }),
+    /Method not found/
+  );
+});
+</pre></section><!--/email_off--></main></body></html>

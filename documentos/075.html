@@ -1,0 +1,132 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/suite.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/suite.test.js</h1><!--email_off--><pre>import test from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { execFileSync } from &#x27;node:child_process&#x27;;
+import { existsSync, readFileSync, readdirSync } from &#x27;node:fs&#x27;;
+import { join } from &#x27;node:path&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+
+import { validateDAG } from &#x27;../scripts/dag_validator.js&#x27;;
+import { computeBlockHash, verifyLedger } from &#x27;../scripts/merkle_verify.js&#x27;;
+import { sliceAst } from &#x27;../scripts/ast_slice.js&#x27;;
+import { getContrastRatio } from &#x27;../scripts/wcag_check.js&#x27;;
+
+// ponytail: synchronous recursive directory walk; upgrade to stream/worker pipeline for repos &gt;100k files
+const repoRoot = fileURLToPath(new URL(&#x27;..&#x27;, import.meta.url));
+
+test(&#x27;CLI Execution &amp; Version&#x27;, () =&gt; {
+  const binPath = join(repoRoot, &#x27;bin&#x27;, &#x27;megabrain.js&#x27;);
+  const stdout = execFileSync(process.execPath, [binPath, &#x27;--version&#x27;], { encoding: &#x27;utf8&#x27; }).trim();
+  assert.equal(stdout, &#x27;4.0.0&#x27;);
+});
+
+test(&#x27;DAG Validator Script&#x27;, () =&gt; {
+  const acyclic = [
+    { id: &#x27;1&#x27;, depends_on: [] },
+    { id: &#x27;2&#x27;, depends_on: [&#x27;1&#x27;] },
+    { id: &#x27;3&#x27;, depends_on: [&#x27;2&#x27;] },
+  ];
+  const resValid = validateDAG(acyclic);
+  assert.equal(resValid.valid, true);
+  assert.deepEqual(resValid.cycles, []);
+  assert.equal(resValid.waves.length, 3);
+
+  const cyclic = [
+    { id: &#x27;a&#x27;, depends_on: [&#x27;b&#x27;] },
+    { id: &#x27;b&#x27;, depends_on: [&#x27;a&#x27;] },
+  ];
+  const resCyclic = validateDAG(cyclic);
+  assert.equal(resCyclic.valid, false);
+  assert.ok(resCyclic.cycles.length &gt; 0);
+});
+
+test(&#x27;Merkle Ledger Script&#x27;, () =&gt; {
+  const b0 = { index: 0, previous_hash: &#x27;0&#x27;, data: &#x27;genesis&#x27; };
+  b0.hash = computeBlockHash(b0);
+  assert.equal(typeof b0.hash, &#x27;string&#x27;);
+  assert.equal(b0.hash.length, 64);
+
+  const b1 = { index: 1, previous_hash: b0.hash, data: &#x27;payload&#x27; };
+  b1.hash = computeBlockHash(b1);
+
+  const validRes = verifyLedger([b0, b1]);
+  assert.equal(validRes.valid, true);
+  assert.equal(validRes.blocks_verified, 2);
+  assert.equal(validRes.errors.length, 0);
+
+  const tamperedRes = verifyLedger([b0, { ...b1, hash: &#x27;badhash&#x27; }]);
+  assert.equal(tamperedRes.valid, false);
+  assert.ok(tamperedRes.errors.length &gt; 0);
+});
+
+test(&#x27;AST Slicer Script&#x27;, () =&gt; {
+  const code = &#x27;export function calculateTotal() {\n  return 100;\n}\nclass Invoice {\n}&#x27;;
+  const res = sliceAst(code, &#x27;js&#x27;);
+  assert.equal(res.lang, &#x27;js&#x27;);
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;calculateTotal&#x27;)));
+  assert.ok(res.declarations.some((d) =&gt; d.includes(&#x27;Invoice&#x27;)));
+  assert.ok(res.outline.includes(&#x27;calculateTotal&#x27;));
+});
+
+test(&#x27;WCAG Checker Script&#x27;, () =&gt; {
+  assert.equal(getContrastRatio(&#x27;#000000&#x27;, &#x27;#ffffff&#x27;), 21);
+  assert.equal(getContrastRatio(&#x27;#ffffff&#x27;, &#x27;#ffffff&#x27;), 1);
+});
+
+test(&#x27;Semantic Skills Discovery Oracle&#x27;, () =&gt; {
+  const skills = [
+    &#x27;megabrain-ui&#x27;,
+    &#x27;megabrain-context&#x27;,
+    &#x27;megabrain-audit&#x27;,
+    &#x27;megabrain-review&#x27;,
+    &#x27;megabrain-pipeline&#x27;,
+    &#x27;megabrain-orchestrate&#x27;,
+  ];
+
+  for (const skill of skills) {
+    const skillPath = join(repoRoot, skill, &#x27;SKILL.md&#x27;);
+    assert.ok(existsSync(skillPath), `${skill}/SKILL.md exists`);
+    const content = readFileSync(skillPath, &#x27;utf8&#x27;);
+
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    assert.ok(fmMatch, `${skill} has YAML frontmatter`);
+    const fm = fmMatch[1];
+    assert.match(fm, /^name:\s*\S+/m, `${skill} has frontmatter name`);
+    assert.match(fm, /^version:\s*\S+/m, `${skill} has frontmatter version`);
+    assert.match(fm, /^description:\s*\S+/m, `${skill} has frontmatter description`);
+
+    assert.match(content, /## When to Use/, `${skill} has &#x27;When to Use&#x27;`);
+    assert.match(content, /## NOT for/, `${skill} has &#x27;NOT for&#x27;`);
+  }
+});
+
+test(&#x27;Privacy &amp; Neutrality Scanner&#x27;, () =&gt; {
+  const forbidden = [
+    [&#x27;Luiz&#x27;, &#x27;Karlos&#x27;].join(&#x27;&#x27;),
+    [&#x27;Luiz&#x27;, &#x27;Karlos&#x27;, &#x27;/megabrain&#x27;].join(&#x27;&#x27;),
+  ];
+  const selfPath = fileURLToPath(import.meta.url);
+
+  function scan(dir) {
+    const hits = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === &#x27;.git&#x27;) continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        hits.push(...scan(full));
+      } else if (entry.isFile()) {
+        if (full === selfPath) continue;
+        const text = readFileSync(full, &#x27;utf8&#x27;);
+        for (const term of forbidden) {
+          if (text.includes(term)) {
+            hits.push({ file: full, term });
+          }
+        }
+      }
+    }
+    return hits;
+  }
+
+  const violations = scan(repoRoot);
+  assert.deepEqual(violations, [], `Privacy violations found: ${JSON.stringify(violations)}`);
+});
+</pre><!--/email_off--></main></body></html>

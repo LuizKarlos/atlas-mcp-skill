@@ -1,0 +1,40 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_docs_context.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_docs_context.test.js</h1><!--email_off--><pre>import { readFileSync } from &#x27;node:fs&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { dirname, join } from &#x27;node:path&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const root = join(dirname(fileURLToPath(import.meta.url)), &#x27;..&#x27;);
+const skill = readFileSync(join(root, &#x27;megabrain-context/SKILL.md&#x27;), &#x27;utf8&#x27;);
+const ast = readFileSync(join(root, &#x27;megabrain-context/references/ast-virtualization.md&#x27;), &#x27;utf8&#x27;);
+const openapi = readFileSync(join(root, &#x27;megabrain-context/references/openapi-contract-synthesis.md&#x27;), &#x27;utf8&#x27;);
+const docs = skill + ast + openapi;
+
+test(&#x27;DOCS_CTX_OUTLINE&#x27;, () =&gt; {
+  assert.match(docs, /outline local limitado/);
+  assert.match(skill, /AST Python no servidor/);
+  assert.match(docs, /preserva/);
+  assert.doesNotMatch(skill, /ast_slice\.js[^\n]*--json/);
+  assert.doesNotMatch(docs, new RegExp([&#x27;Luiz&#x27;, &#x27;Karlos&#x27;].join(&#x27;&#x27;)));
+});
+
+test(&#x27;DOCS_CTX_NAMES&#x27;, () =&gt; {
+  assert.match(skill, /atlas\.begin_upload/);
+  assert.match(skill, /atlas\.complete_upload/);
+  assert.match(skill, /allowed_scope/);
+});
+
+test(&#x27;DOCS_CTX_NO_PROMISE&#x27;, () =&gt; {
+  assert.match(docs, /sem medir/);
+  assert.match(openapi, /JSON objeto/);
+  assert.doesNotMatch(openapi, /call synthesize_backend_contract --operation_id/);
+  assert.doesNotMatch(skill, /&lt;3k/);
+  assert.match(skill, /Sintaxes exercitadas/);
+  const calls = [...skill.matchAll(/megabrain call (\S+) &#x27;([^&#x27;]+)&#x27;/g)].map(m =&gt; ({ tool: m[1], json: JSON.parse(m[2]) }));
+  assert.ok(calls.length &gt;= 2);
+  for (const c of calls) {
+    assert.equal(typeof c.json, &#x27;object&#x27;);
+    assert.notEqual(c.json, null);
+  }
+});
+</pre><!--/email_off--></main></body></html>

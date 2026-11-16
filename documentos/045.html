@@ -1,0 +1,43 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_call_args.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_call_args.test.js</h1><!--email_off--><pre>import assert from &quot;node:assert/strict&quot;;
+import { spawnSync } from &quot;node:child_process&quot;;
+import { test } from &quot;node:test&quot;;
+import { fileURLToPath } from &quot;node:url&quot;;
+import { validateToolName } from &quot;../src/commands/call.js&quot;;
+
+const BIN = fileURLToPath(new URL(&quot;../bin/megabrain.js&quot;, import.meta.url));
+
+function runCli(args) {
+  return spawnSync(process.execPath, [BIN, ...args], { encoding: &quot;utf8&quot; });
+}
+
+function assertRejected(result, message) {
+  assert.notStrictEqual(result.status, 0, `expected non-zero exit, got ${result.status}`);
+  assert.match(result.stderr, message);
+  assert.doesNotMatch(result.stderr, /HTTP \d{3}/, &quot;must fail before reaching the network&quot;);
+}
+
+test(&quot;CALL_REJECT_BARE: bare tool name without megabrain. prefix is rejected&quot;, () =&gt; {
+  assertRejected(runCli([&quot;call&quot;, &quot;health&quot;, &quot;{}&quot;]), /Tool name must be atlas\.&lt;tool&gt;/);
+});
+
+test(&quot;CALL_REJECT_ARRAY: array arguments are rejected before the network call&quot;, () =&gt; {
+  assertRejected(runCli([&quot;call&quot;, &quot;atlas.health&quot;, &quot;[]&quot;]), /Arguments must be a JSON object/);
+});
+
+test(&quot;CALL_REJECT_NULL: null arguments are rejected before the network call&quot;, () =&gt; {
+  assertRejected(runCli([&quot;call&quot;, &quot;atlas.health&quot;, &quot;null&quot;]), /Arguments must be a JSON object/);
+});
+
+test(&quot;CALL_VALIDATE_TOOL_NAME: matrix of accepted and rejected tool names&quot;, () =&gt; {
+  for (const ok of [&quot;atlas.health&quot;, &quot;atlas_health&quot;, &quot;atlas.get_mission&quot;]) {
+    assert.doesNotThrow(() =&gt; validateToolName(ok));
+  }
+  for (const bad of [&quot;atlas.&quot;, &quot;atlas..health&quot;, &quot;atlas.health.&quot;, &quot;health&quot;, &quot;megabrain.health&quot;, &quot;&quot;]) {
+    assert.throws(() =&gt; validateToolName(bad), /Tool name must be atlas\.&lt;tool&gt;/);
+  }
+});
+
+test(&quot;CALL_REJECT_EMPTY_STRING: explicit empty string arguments are rejected before the network call&quot;, () =&gt; {
+  assertRejected(runCli([&quot;call&quot;, &quot;atlas.health&quot;, &quot;&quot;]), /Invalid JSON arguments/);
+});
+</pre><!--/email_off--></main></body></html>

@@ -1,0 +1,59 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/issue351_docs_orchestrate.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/issue351_docs_orchestrate.test.js</h1><!--email_off--><pre>import { readFileSync } from &#x27;node:fs&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import { dirname, join } from &#x27;node:path&#x27;;
+import { test } from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+
+const root = join(dirname(fileURLToPath(import.meta.url)), &#x27;..&#x27;);
+const skill = readFileSync(join(root, &#x27;megabrain-orchestrate/SKILL.md&#x27;), &#x27;utf8&#x27;);
+const life = readFileSync(join(root, &#x27;megabrain-orchestrate/references/mission-lifecycle.md&#x27;), &#x27;utf8&#x27;);
+const swarm = readFileSync(join(root, &#x27;megabrain-orchestrate/references/swarm-coordination.md&#x27;), &#x27;utf8&#x27;);
+const docs = skill + life + swarm;
+
+function extractCalls(markdown) {
+  const blocks = [...markdown.matchAll(/```bash\n([\s\S]*?)```/g)];
+  const calls = [];
+  for (const b of blocks) {
+    for (const m of b[1].matchAll(/megabrain\s+call\s+([\w.]+)\s+&#x27;([^&#x27;]+)&#x27;/g)) {
+      const parsed = JSON.parse(m[2]);
+      assert.equal(typeof parsed, &#x27;object&#x27;);
+      assert.notEqual(parsed, null);
+      assert.equal(Array.isArray(parsed), false);
+      calls.push({ tool: m[1], json: parsed });
+    }
+  }
+  return calls;
+}
+const calls = Object.fromEntries(extractCalls(skill).map(c =&gt; [c.tool, c.json]));
+
+test(&#x27;DOCS_ORCH_CONTRACT&#x27;, () =&gt; {
+  assert.match(skill, /atlas\.create_mission/);
+  assert.match(skill, /atlas\.claim_task/);
+  assert.match(skill, /atlas\.request_verification/);
+  assert.match(skill, /atlas\.export_evidence/);
+  assert.doesNotMatch(skill, /budget_tokens/);
+  assert.doesNotMatch(docs, new RegExp([&#x27;Luiz&#x27;, &#x27;Karlos&#x27;].join(&#x27;&#x27;)));
+  const mission = calls[&#x27;atlas.create_mission&#x27;];
+  assert.ok(mission &amp;&amp; mission.project_id &amp;&amp; mission.mission_id &amp;&amp; Array.isArray(mission.tasks));
+  for (const c of extractCalls(skill)) {
+    assert.ok(!(&#x27;budget_tokens&#x27; in c.json) &amp;&amp; !(&#x27;max_concurrency&#x27; in c.json));
+    assert.ok(!String(c.tool).startsWith(&#x27;megabrain.&#x27;));
+  }
+});
+
+test(&#x27;DOCS_SWARM_BLOCKED&#x27;, () =&gt; {
+  assert.match(docs, /INSUFFICIENT_EVIDENCE/);
+  assert.match(docs, /NOT_EXECUTED/);
+  assert.doesNotMatch(skill, /max_concurrency/);
+  assert.match(swarm, /agent_id/);
+});
+
+test(&#x27;DOCS_QUALIFIED_NAMES&#x27;, () =&gt; {
+  assert.match(skill, /atlas\.begin_upload/);
+  assert.match(skill, /atlas\.submit_task_result/);
+  assert.match(life, /MISSION_NOT_FOUND/);
+  assert.ok(calls[&#x27;atlas.health&#x27;]);
+  assert.ok(calls[&#x27;atlas.claim_task&#x27;]?.project_id);
+  assert.ok(calls[&#x27;atlas.export_evidence&#x27;]?.project_id &amp;&amp; calls[&#x27;atlas.export_evidence&#x27;]?.mission_id);
+});
+</pre><!--/email_off--></main></body></html>

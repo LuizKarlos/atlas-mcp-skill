@@ -1,0 +1,97 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>scripts/ast_slice.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>scripts/ast_slice.js</h1><!--email_off--><pre>#!/usr/bin/env node
+import { readFileSync } from &#x27;node:fs&#x27;;
+import { resolve } from &#x27;node:path&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import process from &#x27;node:process&#x27;;
+
+// ponytail: regex AST signature slicer; upgrade to tree-sitter for deep AST traversal
+export function sliceAst(code = &#x27;&#x27;, lang = &#x27;auto&#x27;) {
+  if (typeof code !== &#x27;string&#x27;) return { lang, declarations: [], outline: &#x27;&#x27; };
+  const detected = lang &amp;&amp; lang !== &#x27;auto&#x27;
+    ? (lang.toLowerCase().includes(&#x27;py&#x27;) ? &#x27;py&#x27; : lang.toLowerCase().includes(&#x27;ts&#x27;) ? &#x27;ts&#x27; : &#x27;js&#x27;)
+    : (/^[ \t]*(?:class\s+\w+|(?:async\s+)?def\s+\w+)/m.test(code) ? &#x27;py&#x27; : (/\b(?:interface\s+\w+|type\s+\w+\s*=|:\s*(?:string|number|boolean|any|void|unknown|Promise)\b)/.test(code) ? &#x27;ts&#x27; : &#x27;js&#x27;));
+
+  const decls = [];
+  let curr = null;
+  let ifaceDepth = 0;
+  const isPy = detected === &#x27;py&#x27;;
+  const startRe = isPy ? /^[ \t]*(?:class\s+\w+|(?:async\s+)?def\s+\w+)/ : /^[ \t]*(?:export\b|(?:async\s+)?function\*?\b|class\b|interface\b|type\b)/;
+  const pyMatch = /^([ \t]*(?:class\s+\w+(?:\([^)]*\))?|(?:async\s+)?def\s+[\w$]+\s*\([^)]*\)\s*(?:-&gt;\s*[^:]+)?)\s*:)/;
+  // ponytail: paren balance handles destructured params/types; upgrade to full tokenizer if quoted braces needed.
+  const bodyIdx = (s) =&gt; {
+    let p = 0;
+    for (let i = 0; i &lt; s.length; i++) {
+      if (s[i] === &#x27;(&#x27;) p++;
+      else if (s[i] === &#x27;)&#x27;) p = Math.max(0, p - 1);
+      else if (s[i] === &#x27;{&#x27; &amp;&amp; p &lt;= 0) return i;
+    }
+    return -1;
+  };
+  const cleanJs = (s) =&gt; (/^[ \t]*(?:export\s+)?interface\b/.test(s) || /^[ \t]*export\s*\{/.test(s) ? s.trim() : (bodyIdx(s) &gt;= 0 ? s.slice(0, bodyIdx(s)).trim() : s.replace(/\s*\{.*$/, &#x27;&#x27;).trim()));
+  const bDelta = (s) =&gt; (s.match(/\{/g) || []).length - (s.match(/\}/g) || []).length;
+
+  for (const line of code.split(&#x27;\n&#x27;)) {
+    const trimmed = line.trim();
+    if (!trimmed || (!isPy &amp;&amp; (trimmed.startsWith(&#x27;//&#x27;) || trimmed.startsWith(&#x27;/*&#x27;)))) continue;
+    if (curr) {
+      curr += &#x27; &#x27; + trimmed;
+      if (ifaceDepth &gt; 0) {
+        ifaceDepth += bDelta(trimmed);
+        if (ifaceDepth &lt;= 0) {
+          decls.push(cleanJs(curr));
+          curr = null;
+          ifaceDepth = 0;
+        }
+      } else if (isPy) {
+        const m = curr.match(pyMatch);
+        if (m) { decls.push(m[1]); curr = null; }
+      } else if (bodyIdx(curr) &gt;= 0 || curr.includes(&#x27;;&#x27;)) {
+        decls.push(cleanJs(curr));
+        curr = null;
+      }
+    } else if (startRe.test(line)) {
+      if (isPy) {
+        const m = line.match(pyMatch);
+        if (m) decls.push(m[1]);
+        else curr = line.trimEnd();
+      } else if (/^[ \t]*export\s*\{/.test(line) || /^[ \t]*type\b/.test(line)) decls.push(trimmed);
+      else if (/^[ \t]*(?:export\s+)?interface\b/.test(line) &amp;&amp; trimmed.includes(&#x27;{&#x27;) &amp;&amp; bDelta(trimmed) &gt; 0) {
+        curr = trimmed;
+        ifaceDepth = bDelta(trimmed);
+      } else if (bodyIdx(trimmed) &gt;= 0) decls.push(cleanJs(trimmed));
+      else if (line.includes(&#x27;;&#x27;) || (!line.includes(&#x27;(&#x27;) &amp;&amp; !line.includes(&#x27;function&#x27;) &amp;&amp; !line.includes(&#x27;class&#x27;))) decls.push(trimmed);
+      else curr = trimmed;
+    }
+  }
+  if (curr &amp;&amp; ifaceDepth &gt; 0) decls.push(`${cleanJs(curr)} [unterminated interface: syntax outside slicer capability]`);
+  return { lang: detected, declarations: decls, outline: decls.join(&#x27;\n&#x27;) };
+}
+
+export default sliceAst;
+
+const isMain = process.argv[1] &amp;&amp; resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  const args = process.argv.slice(2);
+  if (args.includes(&#x27;--help&#x27;) || args.includes(&#x27;-h&#x27;)) {
+    console.log(`MegaBrain AST Context Slicer\n\nUsage:\n  node scripts/ast_slice.js [file] [flags]\n  cat file | node scripts/ast_slice.js [flags]\n\nFlags:\n  --json           Output JSON object instead of raw outline\n  --lang=js|ts|py  Force language parser\n  --help, -h       Show help`);
+    process.exit(0);
+  }
+  try {
+    const isJson = args.includes(&#x27;--json&#x27;);
+    const langFlag = args.find((a) =&gt; a.startsWith(&#x27;--lang=&#x27;));
+    let lang = langFlag ? langFlag.split(&#x27;=&#x27;)[1] : &#x27;auto&#x27;;
+    const file = args.find((a) =&gt; !a.startsWith(&#x27;-&#x27;));
+    if (lang === &#x27;auto&#x27; &amp;&amp; file) {
+      if (/\.py$/i.test(file)) lang = &#x27;py&#x27;;
+      else if (/\.tsx?$/i.test(file)) lang = &#x27;ts&#x27;;
+      else if (/\.c?jsx?$/i.test(file)) lang = &#x27;js&#x27;;
+    }
+    const raw = file ? readFileSync(file, &#x27;utf8&#x27;) : readFileSync(0, &#x27;utf8&#x27;);
+    const res = sliceAst(raw, lang);
+    console.log(isJson ? JSON.stringify(res, null, 2) : res.outline);
+  } catch (err) {
+    console.error(`Error: ${err.message}`);
+    process.exit(1);
+  }
+}
+</pre><!--/email_off--></main></body></html>

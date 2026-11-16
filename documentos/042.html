@@ -1,0 +1,364 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tests/cli_auth.test.js</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>tests/cli_auth.test.js</h1><!--email_off--><pre>import test from &#x27;node:test&#x27;;
+import assert from &#x27;node:assert/strict&#x27;;
+import { spawn } from &#x27;node:child_process&#x27;;
+import fs from &#x27;node:fs&#x27;;
+import path from &#x27;node:path&#x27;;
+import os from &#x27;node:os&#x27;;
+import { fileURLToPath } from &#x27;node:url&#x27;;
+import http from &#x27;node:http&#x27;;
+
+const repoRoot = fileURLToPath(new URL(&#x27;..&#x27;, import.meta.url));
+const binPath = path.join(repoRoot, &#x27;bin&#x27;, &#x27;megabrain.js&#x27;);
+const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, &#x27;package.json&#x27;), &#x27;utf8&#x27;));
+
+function runCliAsync(args, envOverrides = {}) {
+  return new Promise((resolve) =&gt; {
+    const env = { ...process.env, ...envOverrides };
+    const child = spawn(process.execPath, [binPath, ...args], { env });
+    let stdout = &#x27;&#x27;;
+    let stderr = &#x27;&#x27;;
+    child.stdout.on(&#x27;data&#x27;, d =&gt; { stdout += d; });
+    child.stderr.on(&#x27;data&#x27;, d =&gt; { stderr += d; });
+    child.on(&#x27;close&#x27;, (code) =&gt; {
+      resolve({ status: code, stdout, stderr });
+    });
+  });
+}
+
+test(&#x27;1. Permissoes de arquivo credentials.json (0600) e diretorio (0700)&#x27;, async () =&gt; {
+  const tmpDir = path.join(os.tmpdir(), `mb-perm-${Date.now()}`);
+  const prevXdg = process.env.XDG_CONFIG_HOME;
+  process.env.XDG_CONFIG_HOME = tmpDir;
+
+  try {
+    const { saveConfig, loadConfig, getConfigDir, getConfigFile } = await import(`../src/config.js?t=${Date.now()}`);
+
+    saveConfig({ token: &#x27;initial-token&#x27;, endpoint: &#x27;http://example.com/mcp&#x27; });
+
+    const dir = getConfigDir();
+    const file = getConfigFile();
+
+    assert.ok(fs.existsSync(dir), &#x27;Config directory exists&#x27;);
+    assert.ok(fs.existsSync(file), &#x27;Credentials file exists&#x27;);
+
+    const dirMode = fs.statSync(dir).mode &amp; 0o777;
+    const fileMode = fs.statSync(file).mode &amp; 0o777;
+
+    assert.equal(dirMode.toString(8), &#x27;700&#x27;, &#x27;Directory permissions must be 0700&#x27;);
+    assert.equal(fileMode.toString(8), &#x27;600&#x27;, &#x27;File permissions must be 0600&#x27;);
+
+    // Testar correcao de permissoes
+    fs.chmodSync(dir, 0o755);
+    fs.chmodSync(file, 0o644);
+
+    saveConfig({ updated: true });
+    assert.equal((fs.statSync(dir).mode &amp; 0o777).toString(8), &#x27;700&#x27;, &#x27;Directory re-enforced to 0700&#x27;);
+    assert.equal((fs.statSync(file).mode &amp; 0o777).toString(8), &#x27;600&#x27;, &#x27;File re-enforced to 0600&#x27;);
+
+    const loaded = loadConfig();
+    assert.equal(loaded.token, &#x27;initial-token&#x27;);
+    assert.equal(loaded.updated, true);
+  } finally {
+    if (prevXdg !== undefined) process.env.XDG_CONFIG_HOME = prevXdg;
+    else delete process.env.XDG_CONFIG_HOME;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test(&#x27;2. Chamadas de bin/megabrain.js com --version, --help, status --json, call atlas.health&#x27;, async () =&gt; {
+  // --version, -v, version
+  const v1 = await runCliAsync([&#x27;--version&#x27;]);
+  assert.equal(v1.status, 0);
+  assert.equal(v1.stdout.trim(), pkg.version);
+
+  const v2 = await runCliAsync([&#x27;-v&#x27;]);
+  assert.equal(v2.status, 0);
+  assert.equal(v2.stdout.trim(), pkg.version);
+
+  const v3 = await runCliAsync([&#x27;version&#x27;]);
+  assert.equal(v3.status, 0);
+  assert.equal(v3.stdout.trim(), pkg.version);
+
+  // --help, -h, help, no args
+  const h1 = await runCliAsync([&#x27;--help&#x27;]);
+  assert.equal(h1.status, 0);
+  assert.match(h1.stdout, /MegaBrain CLI/);
+
+  const h2 = await runCliAsync([&#x27;-h&#x27;]);
+  assert.equal(h2.status, 0);
+  assert.match(h2.stdout, /Usage:/);
+
+  const h3 = await runCliAsync([&#x27;help&#x27;]);
+  assert.equal(h3.status, 0);
+  assert.match(h3.stdout, /Commands:/);
+
+  const h4 = await runCliAsync([]);
+  assert.equal(h4.status, 0);
+  assert.match(h4.stdout, /Commands:/);
+
+  // Mock server para status e call
+  const server = http.createServer((req, res) =&gt; {
+    if (req.url === &#x27;/health&#x27;) {
+      res.writeHead(200, { &#x27;Content-Type&#x27;: &#x27;application/json&#x27; });
+      res.end(JSON.stringify({ status: &#x27;HEALTHY&#x27;, mock: true }));
+      return;
+    }
+    if (req.url === &#x27;/mcp&#x27;) {
+      let body = &#x27;&#x27;;
+      req.on(&#x27;data&#x27;, chunk =&gt; { body += chunk; });
+      req.on(&#x27;end&#x27;, () =&gt; {
+        const payload = JSON.parse(body);
+        res.writeHead(200, { &#x27;Content-Type&#x27;: &#x27;application/json&#x27; });
+        res.end(JSON.stringify({
+          jsonrpc: &#x27;2.0&#x27;,
+          id: payload.id,
+          result: { tool: payload.params?.name, status: &#x27;ok&#x27;, receivedAuth: req.headers.authorization }
+        }));
+      });
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  await new Promise(r =&gt; server.listen(0, &#x27;127.0.0.1&#x27;, r));
+  const port = server.address().port;
+  const mockEndpoint = `http://127.0.0.1:${port}/mcp`;
+  const fbCalls = [];
+  const fbServer = http.createServer((req, res) =&gt; {
+    if (req.url !== &#x27;/mcp&#x27;) { res.writeHead(404); res.end(); return; }
+    let body = &#x27;&#x27;;
+    req.on(&#x27;data&#x27;, c =&gt; { body += c; });
+    req.on(&#x27;end&#x27;, () =&gt; {
+      const p = JSON.parse(body);
+      fbCalls.push({ tool: p.params?.name, auth: req.headers.authorization });
+      res.writeHead(200, { &#x27;Content-Type&#x27;: &#x27;application/json&#x27; });
+      res.end(JSON.stringify({ jsonrpc: &#x27;2.0&#x27;, id: p.id, result: { tool: p.params?.name, status: &#x27;ok&#x27;, receivedAuth: req.headers.authorization } }));
+    });
+  });
+  await new Promise(r =&gt; fbServer.listen(0, &#x27;127.0.0.1&#x27;, r));
+  const fbEndpoint = `http://127.0.0.1:${fbServer.address().port}/mcp`;
+
+  try {
+    const sRes = await runCliAsync([&#x27;status&#x27;, &#x27;--json&#x27;, &#x27;--endpoint&#x27;, mockEndpoint]);
+    assert.equal(sRes.status, 0);
+    const parsedStatus = JSON.parse(sRes.stdout);
+    assert.equal(parsedStatus.endpoint, mockEndpoint);
+    assert.equal(parsedStatus.status, &#x27;HEALTHY&#x27;);
+    assert.equal(parsedStatus.health.mock, true);
+
+    const fRes = await runCliAsync([&#x27;status&#x27;, &#x27;--json&#x27;, &#x27;--endpoint&#x27;, fbEndpoint], { MEGABRAIN_TOKEN: &#x27;secret-agent-token&#x27; });
+    assert.equal(fRes.status, 0);
+    JSON.parse(fRes.stdout);
+    const healthCall = fbCalls.find(c =&gt; c.tool === &#x27;atlas.health&#x27;);
+    assert.ok(healthCall, &#x27;fallback must call canonical atlas.health&#x27;);
+    assert.equal(healthCall.auth, &#x27;Bearer secret-agent-token&#x27;);
+
+    const cRes = await runCliAsync([
+      &#x27;call&#x27;, &#x27;atlas.health&#x27;, &#x27;{}&#x27;,
+      &#x27;--endpoint&#x27;, mockEndpoint,
+      &#x27;--json&#x27;
+    ], { MEGABRAIN_TOKEN: &#x27;secret-agent-token&#x27; });
+    assert.equal(cRes.status, 0);
+    const parsedCall = JSON.parse(cRes.stdout);
+    assert.equal(parsedCall.tool, &#x27;atlas.health&#x27;);
+    assert.equal(parsedCall.status, &#x27;ok&#x27;);
+    assert.equal(parsedCall.receivedAuth, &#x27;Bearer secret-agent-token&#x27;);
+  } finally {
+    server.close();
+    fbServer.close();
+  }
+});
+
+test(&#x27;3. Fallback e prioridade de variaveis de ambiente MEGABRAIN_TOKEN e MEGABRAIN_ENDPOINT&#x27;, async () =&gt; {
+  const tmpDir = path.join(os.tmpdir(), `mb-prio-${Date.now()}`);
+  const cDir = path.join(tmpDir, &#x27;megabrain&#x27;);
+  fs.mkdirSync(cDir, { recursive: true });
+
+  let lastAuth = null;
+  const server = http.createServer((req, res) =&gt; {
+    lastAuth = req.headers.authorization || null;
+    if (req.url === &#x27;/health&#x27;) {
+      res.writeHead(200, { &#x27;Content-Type&#x27;: &#x27;application/json&#x27; });
+      res.end(JSON.stringify({ status: &#x27;HEALTHY&#x27; }));
+      return;
+    }
+    let body = &#x27;&#x27;;
+    req.on(&#x27;data&#x27;, chunk =&gt; { body += chunk; });
+    req.on(&#x27;end&#x27;, () =&gt; {
+      const payload = body ? JSON.parse(body) : {};
+      res.writeHead(200, { &#x27;Content-Type&#x27;: &#x27;application/json&#x27; });
+      res.end(JSON.stringify({ jsonrpc: &#x27;2.0&#x27;, id: payload.id || 1, result: { auth: lastAuth } }));
+    });
+  });
+
+  await new Promise(r =&gt; server.listen(0, &#x27;127.0.0.1&#x27;, r));
+  const port = server.address().port;
+  const mockEndpoint = `http://127.0.0.1:${port}/mcp`;
+
+  const fileEndpoint = mockEndpoint;
+  const fileToken = &#x27;token-from-credentials-file&#x27;;
+
+  fs.writeFileSync(
+    path.join(cDir, &#x27;credentials.json&#x27;),
+    JSON.stringify({ endpoint: fileEndpoint, token: fileToken }, null, 2),
+    { mode: 0o600 }
+  );
+
+  const envDefaults = {
+    XDG_CONFIG_HOME: tmpDir,
+    MEGABRAIN_ENDPOINT: &#x27;&#x27;,
+    MEGABRAIN_TOKEN: &#x27;&#x27;,
+  };
+
+  try {
+    // 3a. Prioridade de Endpoint:
+    // Caso 1: Apenas arquivo configurado -&gt; deve usar fileEndpoint
+    const s1 = await runCliAsync([&#x27;status&#x27;, &#x27;--json&#x27;], {
+      ...envDefaults,
+      MEGABRAIN_ENDPOINT: &#x27;&#x27;,
+      MEGABRAIN_TOKEN: &#x27;&#x27;,
+    });
+    assert.equal(s1.status, 0);
+    const p1 = JSON.parse(s1.stdout || &#x27;{}&#x27;);
+    assert.equal(p1.endpoint, fileEndpoint, &#x27;Fallback to credentials.json endpoint when no env or flag&#x27;);
+
+    // Caso 2: Env var setada -&gt; deve sobrepor arquivo
+    const envEndpoint = `http://127.0.0.1:${port}/env-mcp`;
+    const s2 = await runCliAsync([&#x27;status&#x27;, &#x27;--json&#x27;], {
+      ...envDefaults,
+      MEGABRAIN_ENDPOINT: envEndpoint,
+    });
+    assert.equal(s2.status, 0);
+    const p2 = JSON.parse(s2.stdout || &#x27;{}&#x27;);
+    assert.equal(p2.endpoint, envEndpoint, &#x27;MEGABRAIN_ENDPOINT must override credentials.json&#x27;);
+
+    // Caso 3: Flag --endpoint -&gt; deve sobrepor Env var e arquivo
+    const flagEndpoint = `http://127.0.0.1:${port}/flag-mcp`;
+    const s3 = await runCliAsync([&#x27;status&#x27;, &#x27;--json&#x27;, &#x27;--endpoint&#x27;, flagEndpoint], {
+      ...envDefaults,
+      MEGABRAIN_ENDPOINT: envEndpoint,
+    });
+    assert.equal(s3.status, 0);
+    const p3 = JSON.parse(s3.stdout || &#x27;{}&#x27;);
+    assert.equal(p3.endpoint, flagEndpoint, &#x27;--endpoint flag must override MEGABRAIN_ENDPOINT and credentials.json&#x27;);
+
+    // 3b. Prioridade de Token:
+    // Caso 1: Apenas arquivo configurado -&gt; deve enviar fileToken
+    lastAuth = null;
+    const c1 = await runCliAsync([&#x27;call&#x27;, &#x27;atlas.health&#x27;, &#x27;{}&#x27;, &#x27;--endpoint&#x27;, mockEndpoint, &#x27;--json&#x27;], {
+      ...envDefaults,
+      MEGABRAIN_TOKEN: &#x27;&#x27;,
+    });
+    assert.equal(c1.status, 0);
+    assert.equal(lastAuth, `Bearer ${fileToken}`, &#x27;Fallback to credentials.json token&#x27;);
+
+    // Caso 2: Env var setada -&gt; deve sobrepor arquivo
+    lastAuth = null;
+    const c2 = await runCliAsync([&#x27;call&#x27;, &#x27;atlas.health&#x27;, &#x27;{}&#x27;, &#x27;--endpoint&#x27;, mockEndpoint, &#x27;--json&#x27;], {
+      ...envDefaults,
+      MEGABRAIN_TOKEN: &#x27;token-from-env&#x27;,
+    });
+    assert.equal(c2.status, 0);
+    assert.equal(lastAuth, &#x27;Bearer token-from-env&#x27;, &#x27;MEGABRAIN_TOKEN must override credentials.json token&#x27;);
+
+    // Caso 3: Flag --token rejeitada
+    const c3 = await runCliAsync([&#x27;call&#x27;, &#x27;test&#x27;, &#x27;{}&#x27;, &#x27;--endpoint&#x27;, mockEndpoint, &#x27;--token&#x27;, &#x27;token-from-flag&#x27;, &#x27;--json&#x27;], {
+      ...envDefaults,
+      MEGABRAIN_TOKEN: &#x27;token-from-env&#x27;,
+    });
+    assert.equal(c3.status, 1);
+    assert.ok(!c3.stderr.includes(&#x27;token-from-flag&#x27;));
+
+    // 3c. Preservacao de endpoint customizado durante login sem --endpoint
+    const l1 = await runCliAsync([&#x27;login&#x27;, &#x27;--json&#x27;], { ...envDefaults, MEGABRAIN_TOKEN: &#x27;another-token&#x27;, MEGABRAIN_ENDPOINT: &#x27;&#x27; });
+    assert.equal(l1.status, 0);
+    const credContent = JSON.parse(fs.readFileSync(path.join(cDir, &#x27;credentials.json&#x27;), &#x27;utf8&#x27;));
+    assert.equal(credContent.token, &#x27;another-token&#x27;);
+    assert.equal(credContent.endpoint, fileEndpoint, &#x27;login command without --endpoint must NOT clobber custom endpoint&#x27;);
+    const noTok = await runCliAsync([&#x27;login&#x27;], { ...envDefaults, MEGABRAIN_TOKEN: &#x27;&#x27;, XDG_CONFIG_HOME: path.join(tmpDir, &#x27;nc&#x27;) });
+    assert.ok(noTok.status === 1 &amp;&amp; !fs.existsSync(path.join(tmpDir, &#x27;nc&#x27;)));
+  } finally {
+    server.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test(&#x27;4. Codigos de saida de erro quando argumentos invalidos sao passados&#x27;, async () =&gt; {
+  const r1 = await runCliAsync([&#x27;invalid_command_xyz&#x27;]);
+  assert.equal(r1.status, 1, &#x27;Unknown command should exit with code 1&#x27;);
+  assert.match(r1.stderr, /Unknown command: &#x27;invalid_command_xyz&#x27;/);
+
+  const r2 = await runCliAsync([&#x27;call&#x27;]);
+  assert.equal(r2.status, 1, &#x27;call without tool name should exit with code 1&#x27;);
+  assert.match(r2.stderr, /Tool name required/);
+
+  const r3 = await runCliAsync([&#x27;call&#x27;, &#x27;atlas.health&#x27;, &#x27;{not-json&#x27;]);
+  assert.equal(r3.status, 1, &#x27;call with malformed JSON should exit with code 1&#x27;);
+  assert.match(r3.stderr, /Invalid JSON arguments/);
+
+  const r4 = await runCliAsync([&#x27;status&#x27;, &#x27;--endpoint&#x27;, &#x27;not_a_valid_url&#x27;]);
+  assert.equal(r4.status, 1, &#x27;status with invalid endpoint URL should exit with code 1&#x27;);
+  assert.match(r4.stderr, /Invalid URL|Endpoint invalido/);
+});
+
+test(&#x27;5. Suporte nativo a .env local no CLI sem dependencias externas&#x27;, async () =&gt; {
+  if (typeof process.loadEnvFile !== &#x27;function&#x27;) return;
+  const tmpDir = path.join(os.tmpdir(), `mb-env-${Date.now()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+  fs.writeFileSync(path.join(tmpDir, &#x27;.env&#x27;), &#x27;MEGABRAIN_ENDPOINT=https://custom-test.local/mcp\n&#x27;);
+  try {
+    const res = await new Promise((resolve) =&gt; {
+      const env = { ...process.env, NODE_OPTIONS: &#x27;--import data:text/javascript,globalThis.fetch=async()=&gt;new%20Response(JSON.stringify({status:%22ok%22}))&#x27; };
+      delete env.MEGABRAIN_ENDPOINT;
+      delete env.MEGABRAIN_TOKEN;
+      const child = spawn(process.execPath, [binPath, &#x27;status&#x27;, &#x27;--json&#x27;], { env, cwd: tmpDir });
+      let stdout = &#x27;&#x27;;
+      child.stdout.on(&#x27;data&#x27;, d =&gt; { stdout += d; });
+      child.on(&#x27;close&#x27;, code =&gt; resolve({ status: code, stdout }));
+    });
+    assert.equal(res.status, 0);
+    const parsed = JSON.parse(res.stdout || &#x27;{}&#x27;);
+    assert.equal(parsed.endpoint, &#x27;https://custom-test.local/mcp&#x27;);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test(&#x27;6. setup --write-mcp grava megabrain.mcp.json sem token plaintext&#x27;, async () =&gt; {
+  const tmp = path.join(os.tmpdir(), `mb-setup-${Date.now()}`);
+  const cfg = path.join(tmp, &#x27;megabrain.mcp.json&#x27;);
+  try {
+    const r1 = await runCliAsync([&#x27;setup&#x27;, &#x27;--dest&#x27;, tmp, &#x27;--endpoint&#x27;, &#x27;http://127.0.0.1:65534&#x27;, &#x27;--json&#x27;], { MEGABRAIN_TOKEN: &#x27;sec1&#x27; });
+    assert.equal(fs.existsSync(cfg), false);
+    const r2 = await runCliAsync([&#x27;setup&#x27;, &#x27;--dest&#x27;, tmp, &#x27;--write-mcp&#x27;, &#x27;--endpoint&#x27;, &#x27;http://127.0.0.1:65534&#x27;, &#x27;--json&#x27;], { MEGABRAIN_TOKEN: &#x27;sec1&#x27; });
+    assert.equal(fs.existsSync(cfg), true);
+    const data = JSON.parse(fs.readFileSync(cfg, &#x27;utf8&#x27;));
+    assert.equal(data.mcpServers.atlas.url, &#x27;http://127.0.0.1:65534&#x27;);
+    assert.equal(data.mcpServers.atlas.headers.Authorization, &#x27;Bearer ${MEGABRAIN_TOKEN}&#x27;);
+    assert.ok(!r1.stdout.includes(&#x27;sec1&#x27;) &amp;&amp; !r2.stdout.includes(&#x27;sec1&#x27;) &amp;&amp; !JSON.stringify(data).includes(&#x27;sec1&#x27;));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test(&#x27;7. login com endpoint invalido falha e preserva credentials.json inalterado&#x27;, async () =&gt; {
+  const tmpDir = path.join(os.tmpdir(), `mb-login-atomic-${Date.now()}`);
+  const cDir = path.join(tmpDir, &#x27;megabrain&#x27;);
+  const credFile = path.join(cDir, &#x27;credentials.json&#x27;);
+  fs.mkdirSync(cDir, { recursive: true, mode: 0o700 });
+  const initialContent = JSON.stringify({ token: &#x27;old-token&#x27;, endpoint: &#x27;https://mcp.atlascommand.dev/mcp&#x27; }, null, 2) + &#x27;\n&#x27;;
+  fs.writeFileSync(credFile, initialContent, { mode: 0o600 });
+  try {
+    const res = await runCliAsync([&#x27;login&#x27;, &#x27;--endpoint&#x27;, &#x27;not_a_valid_url&#x27;], {
+      XDG_CONFIG_HOME: tmpDir,
+      MEGABRAIN_TOKEN: &#x27;new-token&#x27;,
+    });
+    assert.equal(res.status, 1);
+    assert.ok(!res.stderr.includes(&#x27;new-token&#x27;));
+    assert.equal(fs.readFileSync(credFile, &#x27;utf8&#x27;), initialContent);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+</pre><!--/email_off--></main></body></html>

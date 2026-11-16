@@ -1,0 +1,29 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>megabrain-review/references/anti-slop-patterns.md</title></head><body><header><p><a href="/">Índice principal</a> | <a href="/volumes/">Volumes consolidados</a></p></header><main><h1>megabrain-review/references/anti-slop-patterns.md</h1><!--email_off--><pre># Anti-Slop &amp; Humanization Patterns
+
+Enforces direct, humanized communication and removes synthetic AI tropes via `@cli_atlas/cli` and MegaBrain MCP (`https://mcp.atlascommand.dev/mcp`).
+
+## Automated Linting Protocol (local anti-slop lint)
+
+Scans text against humanizer heuristics to eliminate conversational fluff, clichés, and superficial verbosity:
+- **Preamble Pruning**: Strips sycophantic openers (&quot;Certamente!&quot;, &quot;Com certeza!&quot;, &quot;Como um modelo de IA...&quot;).
+- **Cliché Expulsion**: Detects and bans tired metaphors (&quot;mergulhar em&quot;, &quot;testamento a&quot;, &quot;divisor de águas&quot;, &quot;crucial&quot;).
+- **Flourish Elimination**: Replaces decorative filler with concise, factual, and actionable statements.
+- **Redundancy Compression**: Collapses repetitive restatements into single declarative truths.
+
+## Enforcement Rules &amp; Replacements
+
+| Pattern Category | AI Slop Cliché | Humanized Canonical Form |
+| :--- | :--- | :--- |
+| **Empty Openers** | *&quot;Certamente! Ficarei feliz em ajudar com...&quot;* | *(Direct action or code immediately)* |
+| **Inflated Adjectives**| *&quot;É crucial lembrar que a arquitetura robusta...&quot;* | *&quot;A arquitetura exige...&quot;* |
+| **Trope Metaphors** | *&quot;Vamos mergulhar profundamente nesta análise...&quot;* | *&quot;Analisando os seguintes pontos:&quot;* |
+| **Hedging Fillers** | *&quot;É importante notar que isto serve como um testamento...&quot;* | *&quot;Isto demonstra que...&quot;* |
+
+Lint is local in the harness. There is no MCP tool for it.
+
+```text
+{&quot;text&quot;:&quot;Direct assertion without filler.&quot;}
+```
+
+JSON objeto, não flags `--text`.
+</pre><!--/email_off--></main></body></html>
