@@ -383,4 +383,6 @@ Códigos documentados:
 - `VERIFICATION_REQUIRED`
 - `UNEXPECTED_ARGUMENT`
 
+Origem: o servidor Atlas v1 emite os códigos de domínio (`VERIFICATION_REQUIRED`, `MISSION_NOT_FOUND`, `DEPENDENCY_BLOCKED`, `LOCK_ACQUISITION_FAILED`, `TIMEOUT_EXCEEDED`, `INVALID_ARGUMENT`, `UNEXPECTED_ARGUMENT`, além de `PROJECT_NOT_FOUND`, `MANIFEST_NOT_FOUND`, `EXECUTION_NOT_FOUND` e similares). `INSUFFICIENT_EVIDENCE`, `NOT_EXECUTED` e `NOT_DISPATCHED` seguem na lista retidos na CLI/harness para compatibilidade de parser: eram status do kernel de swarm removido e o servidor v1 não os emite — falta de verificação chega como `VERIFICATION_REQUIRED` (ver `megabrain-orchestrate/references/swarm-coordination.md`).
+
 A regra `businessFail` (CLI) define exit 1 para `isError`, `status:error` top-level, `structuredContent.status:error`, `structuredContent.error_code` não vazio, ou content text JSON com `status:error`/`error_code` não vazio; exit 0 em texto não-JSON/saudável.
