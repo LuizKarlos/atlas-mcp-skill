@@ -10,7 +10,7 @@ const CANONICAL = [
   "atlas.get_mission", "atlas.archive_mission", "atlas.claim_task", "atlas.renew_task_lease",
   "atlas.submit_task_result", "atlas.submit_task_review", "atlas.begin_upload",
   "atlas.complete_upload", "atlas.request_verification", "atlas.get_verification",
-  "atlas.export_evidence", "atlas.get_usage"
+  "atlas.verify_and_attest", "atlas.export_evidence", "atlas.get_usage"
 ];
 
 function extractCalls(markdown) {
@@ -22,7 +22,7 @@ function extractCalls(markdown) {
   return calls;
 }
 
-test("atlas surface catalog 26/26", () => {
+test("atlas surface catalog 27/27", () => {
   const fullDoc = fs.readFileSync("megabrain-surface/SKILL.md", "utf8");
   const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
   assert.ok(pkg.files && pkg.files.includes("megabrain-surface"));
@@ -42,16 +42,16 @@ test("atlas surface catalog 26/26", () => {
   assert.ok(calls["atlas.get_usage"].project_id);
 });
 
-test("atlas surface aliases 26/26", () => {
+test("atlas surface aliases 27/27", () => {
   const fullDoc = fs.readFileSync("megabrain-surface/SKILL.md", "utf8");
-  const aliasSection = fullDoc.split("## Aliases underscore — 26/26")[1];
+  const aliasSection = fullDoc.split("## Aliases underscore — 27/27")[1];
   assert.ok(aliasSection, "alias section exists");
   const pairs = [...aliasSection.matchAll(/(atlas\.([a-z0-9_]+))\s*->\s*(atlas_([a-z0-9_]+))/g)];
-  assert.equal(pairs.length, 26, "must contain exactly 26 alias pairs");
+  assert.equal(pairs.length, 27, "must contain exactly 27 alias pairs");
   const canonicalSet = new Set(pairs.map((p) => p[1]));
   const aliasSet = new Set(pairs.map((p) => p[3]));
-  assert.equal(canonicalSet.size, 26, "26 unique canonical tools");
-  assert.equal(aliasSet.size, 26, "26 unique alias tools");
+  assert.equal(canonicalSet.size, 27, "27 unique canonical tools");
+  assert.equal(aliasSet.size, 27, "27 unique alias tools");
   for (const match of pairs) {
     const [, canonical, canonTool, alias] = match;
     assert.equal(alias, `atlas_${canonical.slice("atlas.".length)}`);
@@ -188,7 +188,7 @@ test("atlas surface error contract", async () => {
 
 test("test_mcp_surface_coverage_closure", async () => {
   const { execSync } = await import("node:child_process");
-  assert.equal(CANONICAL.length, 26, "26 tools no manifest canonical");
+  assert.equal(CANONICAL.length, 27, "27 tools no manifest canonical");
   const files = fs.readdirSync(".", { recursive: true }).filter((f) => f.endsWith(".md") && !f.includes("node_modules"));
   const regex = /megabrain call (atlas[._][a-z0-9_]+) '([^']+)'/g;
   const found = new Map();
@@ -204,7 +204,7 @@ test("test_mcp_surface_coverage_closure", async () => {
   for (const tool of CANONICAL) {
     assert.ok(found.has(tool), "tool ausente nos docs: " + tool);
   }
-  assert.equal(found.size, 26, "26/26 presentes");
+  assert.equal(found.size, 27, "27/27 presentes");
   const kPath = process.env.MEGABRAIN_KERNEL_SOURCE || "/srv/megabrain-dev/repository/runtime/atlas_mcp_server.py";
   if (fs.existsSync(kPath)) {
     const py = 'python3 - <<PY\nimport ast, json, re\ntree = ast.parse(open("' + kPath + '").read())\nsigs = {}\nfor n in ast.walk(tree):\n    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("atlas_"):\n        sigs[n.name] = [a.arg for a in n.args.args if a.arg not in ("self",)]\nprint(json.dumps(sigs))\nPY';

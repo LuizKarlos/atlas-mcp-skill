@@ -1,0 +1,42 @@
+# Documentação — @megabrain/cli (Atlas v1)
+
+Índice único para leitura por agentes. Todos os caminhos são relativos à raiz deste repositório.
+
+## Ordem de leitura
+
+1. `README.md` — instalação, comandos e matriz de sub-skills.
+2. `SPEC.md` — contrato da superfície: 27 tools `atlas.*`, identidade e limites.
+3. `ROADMAP.md` — estado do pacote e cobertura documentada.
+4. `megabrain-surface/SKILL.md` — catálogo completo das 27 tools, aliases, transporte e erros.
+5. Skills operacionais:
+   - `megabrain-orchestrate/SKILL.md`
+   - `megabrain-pipeline/SKILL.md`
+   - `megabrain-review/SKILL.md`
+   - `megabrain-audit/SKILL.md`
+   - `megabrain-context/SKILL.md`
+   - `megabrain-ui/SKILL.md`
+6. Referências profundas:
+   - `megabrain-orchestrate/references/mission-lifecycle.md`
+   - `megabrain-orchestrate/references/swarm-coordination.md`
+   - `megabrain-pipeline/references/dag-decomposition-rules.md`
+   - `megabrain-pipeline/references/topological-waves.md`
+   - `megabrain-pipeline/references/auto-healing-patterns.md`
+   - `megabrain-review/references/dual-blind-adjudication.md`
+   - `megabrain-review/references/anti-slop-patterns.md`
+   - `megabrain-review/references/voice-calibration.md`
+   - `megabrain-audit/references/merkle-ledger-spec.md`
+   - `megabrain-audit/references/receipt-ed25519-verification.md`
+   - `megabrain-audit/references/time-travel-replay.md`
+   - `megabrain-context/references/ast-virtualization.md`
+   - `megabrain-context/references/openapi-contract-synthesis.md`
+   - `megabrain-ui/references/visual-tdd-methodology.md`
+   - `megabrain-ui/references/design-tokens-spec.md`
+   - `megabrain-ui/references/wcag-target-sizes.md`
+
+## Regras de leitura
+
+- Trate cada documento como contrato: nomes de tools, assinaturas e limites são normativos.
+- O servidor canônico é `https://mcp.atlascommand.dev/mcp`; o endpoint local é `http://127.0.0.1:<porta>/mcp`.
+- Não use `megabrain.*` nem `mcp__megabrain__*`: a superfície atual é somente `atlas.*`.
+- Exemplos `megabrain call ...` assumem CLI autenticada; não há credenciais neste repositório.
+- Em conflito entre um exemplo e uma assinatura, a assinatura da seção da tool prevalece.

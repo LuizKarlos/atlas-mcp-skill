@@ -1,8 +1,8 @@
 # Atlas MCP companion
 
-Pacote de skills e instalador mínimo para o servidor Atlas v1 (26 tools `atlas.*`).
+Pacote de skills e instalador mínimo para o servidor Atlas v1 (27 tools `atlas.*`).
 
-Servidor canônico: [atlascommand.dev](https://atlascommand.dev) (`runtime/atlas_mcp_server.py`, 26 tools `atlas.*`).
+Servidor canônico: [atlascommand.dev](https://atlascommand.dev) (`runtime/atlas_mcp_server.py`, 27 tools `atlas.*`).
 
 O servidor Atlas governa missões, leases, artifacts, verificação Docker e evidência. A LLM executa o trabalho no próprio harness. Este pacote ensina o contrato MCP atual. Não há aliases para as 36 tools `megabrain.*` removidas.
 
@@ -10,7 +10,7 @@ O servidor Atlas governa missões, leases, artifacts, verificação Docker e evi
 
 | Onde | Valor |
 | :--- | :--- |
-| Superfície MCP | 26 tools `atlas.*`, schema fechado, sem alias |
+| Superfície MCP | 27 tools `atlas.*`, schema fechado, sem alias |
 | Identidade | conta `USER` (projetos) e conta `ADMIN` (keys). Atlas não tem roles técnicas |
 | Endpoint | `https://mcp.atlascommand.dev/mcp` (prod) ou `http://127.0.0.1:<porta>/mcp` (efêmero) |
 | Auth | `Authorization: Bearer <atlas_user_…\|atlas_admin_…>` |
@@ -49,7 +49,7 @@ No Hermes, o servidor chama-se `atlas`. Não instale a skill empacotada do repos
 | `megabrain-audit` | `atlas.export_evidence`; ledger/receipts do servidor |
 | `megabrain-context` | Upload de bytes; AST/OpenAPI no harness local |
 | `megabrain-ui` | Visual/WCAG no harness local; não são tools MCP |
-| `megabrain-surface` | Catálogo das 26 tools, identidade USER/ADMIN, transporte |
+| `megabrain-surface` | Catálogo das 27 tools, identidade USER/ADMIN, transporte |
 
 ## Local Tooling Scripts
 

@@ -4,7 +4,7 @@ Este pacote ensina a LLM a usar o servidor Atlas ([atlascommand.dev](https://atl
 
 ## Superfície
 
-26 tools `atlas.*`. Sem alias `megabrain.*`. Sem resources. Sem prompts MCP. Sem roles Atlas.
+27 tools `atlas.*`. Sem alias `megabrain.*`. Sem resources. Sem prompts MCP. Sem roles Atlas.
 
 Identidade: conta `USER` (projetos) e conta `ADMIN` (keys). A autoridade é a API key, não um campo `role`.
 

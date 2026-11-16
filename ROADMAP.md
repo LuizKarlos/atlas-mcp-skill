@@ -1,6 +1,6 @@
 # Companion Atlas v1 — roadmap
 
-**Contrato:** 26 tools `atlas.*` no servidor Atlas (`3a10b116`). Este pacote é o mapa da LLM até essas tools.
+**Contrato:** 27 tools `atlas.*` no servidor Atlas (`3a10b116`). Este pacote é o mapa da LLM até essas tools.
 **Baseline anterior:** `4f819dd` descrevia 36 tools `megabrain.*`, CLI de missão, roles e aliases. Esse mapa não bate no socket.
 
 ## 1. Por que reescrever
@@ -15,7 +15,7 @@ Causas:
 
 ## 2. Feito nesta fatia
 
-- [x] Catálogo das 26 tools `atlas.*` em `megabrain-surface`.
+- [x] Catálogo das 27 tools `atlas.*` em `megabrain-surface`.
 - [x] Fluxo `health → project → manifest → mission → claim → upload → request_verification → get_verification → submit → export_evidence`.
 - [x] Identidade canônica: `USER` / `ADMIN`. Sem roles Atlas (`mission_compiler`, etc.).
 - [x] Sem aliases `megabrain.*`. Sem `grant_approval`, checkpoint, swarm, AST/UI no servidor.

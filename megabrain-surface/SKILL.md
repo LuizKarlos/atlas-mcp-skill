@@ -1,12 +1,12 @@
 ---
 name: megabrain-surface
 version: 4.0.0
-description: Atlas v1 MCP surface: 26 atlas.* tools, USER/ADMIN identity, transports, errors.
+description: Atlas v1 MCP surface: 27 atlas.* tools, USER/ADMIN identity, transports, errors.
 ---
 
 # Superfície Atlas v1
 
-Servidor: 26 tools `atlas.*`. Sem alias `megabrain.*`. Sem roles Atlas. Sem painel. Sem CLI de missão.
+Servidor: 27 tools `atlas.*`. Sem alias `megabrain.*`. Sem roles Atlas. Sem painel. Sem CLI de missão.
 
 No Hermes o bloco MCP chama-se `atlas`. Tools aparecem como `mcp__atlas__atlas_<action>` (ponto vira underscore). Chame essa tool. O prefixo legado `mcp__megabrain__*` e as 36 tools antigas não existem neste servidor.
 
@@ -23,7 +23,7 @@ Não envie `account_id`, owner, admin, role ou status como autoridade no payload
 
 Papéis de harness (`implementer`, `reviewer`) ficam no ambiente da LLM. Não são tools nem parâmetros MCP.
 
-## Catálogo — 26/26
+## Catálogo — 27/27
 
 ### Serviço e contas
 
@@ -190,6 +190,13 @@ Limite: `CHECK_EXECUTION_VERIFIED` só após assinatura e vínculos.
 megabrain call atlas.get_verification '{"project_id":"proj_alpha","run_id":"run_1"}'
 ```
 
+## atlas.verify_and_attest
+Assinatura: `atlas.verify_and_attest(project_id, files, checks, mission_id=None, task_id=None, manifest_id=None, image_digest=None, wait_timeout_seconds=...)`.
+Limite: fachada transacional — empacota, registra manifesto, cria missão, claim, upload, verifica e exporta evidência em uma chamada. Reutiliza `manifest_id`/`mission_id` quando fornecidos; falha fechada em qualquer etapa.
+```bash
+megabrain call atlas.verify_and_attest '{"project_id":"proj_alpha","files":[{"path":"check.py","content":"print(1)"}],"checks":[{"name":"smoke","command":"python check.py"}]}'
+```
+
 ## atlas.export_evidence
 Assinatura: `atlas.export_evidence(project_id, mission_id)` -> receipts, ledger, chain_verified.
 Limite: `chain_verified: true` só com cadeia íntegra. Não confie no booleano sem os blocos.
@@ -203,7 +210,7 @@ Assinatura: `atlas.get_usage(project_id)` -> volumetrics, limits null.
 megabrain call atlas.get_usage '{"project_id":"proj_alpha"}'
 ```
 
-## Aliases underscore — 26/26
+## Aliases underscore — 27/27
 
 Regra 1:1: `atlas.<tool>` ↔ `atlas_<tool>`. Alias não é tool nova. Sem `megabrain.*`.
 
@@ -236,6 +243,7 @@ Equivalente a `megabrain call atlas.health '{}'`.
 - atlas.complete_upload -> atlas_complete_upload
 - atlas.request_verification -> atlas_request_verification
 - atlas.get_verification -> atlas_get_verification
+- atlas.verify_and_attest -> atlas_verify_and_attest
 - atlas.export_evidence -> atlas_export_evidence
 - atlas.get_usage -> atlas_get_usage
 
