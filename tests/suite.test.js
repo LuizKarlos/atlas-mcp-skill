@@ -16,7 +16,10 @@ const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 test('CLI Execution & Version', () => {
   const binPath = join(repoRoot, 'bin', 'megabrain.js');
   const stdout = execFileSync(process.execPath, [binPath, '--version'], { encoding: 'utf8' }).trim();
-  assert.equal(stdout, '4.0.0');
+  const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
+  assert.equal(pkg.name, '@cli_atlas/cli');
+  assert.equal(pkg.version, '4.0.1');
+  assert.equal(stdout, pkg.version);
 });
 
 test('DAG Validator Script', () => {
@@ -99,11 +102,29 @@ test('Semantic Skills Discovery Oracle', () => {
   }
 });
 
+const OWNER = ['Luiz', 'Karlos'].join('');
+const LEGACY_REPO = `${OWNER}/megabrain`;
+const OFFICIAL_LINK = new RegExp(`(?<![A-Za-z0-9_-])${OWNER}/atlas(?:-mcp-skill)?(?![A-Za-z0-9_-])`, 'g');
+
+// The personal name is allowed only inside the two official repositories.
+function privacyHits(text) {
+  const hits = [];
+  if (text.includes(LEGACY_REPO)) hits.push(LEGACY_REPO);
+  if (text.replace(OFFICIAL_LINK, '').includes(OWNER)) hits.push(OWNER);
+  return hits;
+}
+
+test('Privacy scanner allows only official atlas links', () => {
+  for (const text of [`${OWNER}/atlas`, `${OWNER}/atlas-mcp-skill`, `https://github.com/${OWNER}/atlas`]) {
+    assert.deepEqual(privacyHits(text), [], text);
+  }
+  for (const text of [OWNER, `${OWNER}/other-private-repo`, LEGACY_REPO, `owner ${OWNER} here`,
+    `${OWNER}/atlas-private`, `${OWNER}/atlas-mcp-skill-private`, `prefix-${OWNER}/atlas-suffix`]) {
+    assert.ok(privacyHits(text).length > 0, text);
+  }
+});
+
 test('Privacy & Neutrality Scanner', () => {
-  const forbidden = [
-    ['Luiz', 'Karlos'].join(''),
-    ['Luiz', 'Karlos', '/megabrain'].join(''),
-  ];
   const selfPath = fileURLToPath(import.meta.url);
 
   function scan(dir) {
@@ -116,10 +137,8 @@ test('Privacy & Neutrality Scanner', () => {
       } else if (entry.isFile()) {
         if (full === selfPath) continue;
         const text = readFileSync(full, 'utf8');
-        for (const term of forbidden) {
-          if (text.includes(term)) {
-            hits.push({ file: full, term });
-          }
+        for (const term of privacyHits(text)) {
+          hits.push({ file: full, term });
         }
       }
     }
