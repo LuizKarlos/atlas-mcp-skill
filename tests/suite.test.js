@@ -16,7 +16,8 @@ const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 test('CLI Execution & Version', () => {
   const binPath = join(repoRoot, 'bin', 'megabrain.js');
   const stdout = execFileSync(process.execPath, [binPath, '--version'], { encoding: 'utf8' }).trim();
-  assert.equal(stdout, '4.0.0');
+  const { version } = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
+  assert.equal(stdout, version);
 });
 
 test('DAG Validator Script', () => {
@@ -100,8 +101,8 @@ test('Semantic Skills Discovery Oracle', () => {
 });
 
 test('Privacy & Neutrality Scanner', () => {
+  // The personal name is allowed only for the official linked repo (LuizKarlos/atlas).
   const forbidden = [
-    ['Luiz', 'Karlos'].join(''),
     ['Luiz', 'Karlos', '/megabrain'].join(''),
   ];
   const selfPath = fileURLToPath(import.meta.url);

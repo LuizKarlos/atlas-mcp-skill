@@ -21,13 +21,13 @@ Handshake `POST /mcp` e keepalive não são uso. Uso é `tools/call` de `atlas.*
 
 ## Instalação
 
-Publicação pública ainda não existe e não foi executada (requer Node >=18). Prepare o artefato beta verificável:
+Pacote oficial no npm (Node >=18):
 
 ```bash
-npm run release:pack
-(cd dist && sha256sum -c megabrain-cli-4.0.0.tgz.sha256)
-npm install -g ./dist/megabrain-cli-4.0.0.tgz
+npm install -g @cli_atlas/cli@4.0.1
 export MEGABRAIN_ENDPOINT=https://mcp.atlascommand.dev/mcp
+export MEGABRAIN_TOKEN='<raw_key exibida uma vez>'
+megabrain login
 megabrain --version
 # Rollback por reinstalar versão anterior
 ```
@@ -36,6 +36,8 @@ megabrain --version
 megabrain setup --dest .agents/skills --endpoint https://mcp.atlascommand.dev/mcp
 megabrain call atlas.health '{}'
 ```
+
+Este repositório e [`LuizKarlos/atlas`](https://github.com/LuizKarlos/atlas) (servidor MCP + portal em https://app.atlascommand.dev) são oficialmente vinculados: o pacote ensina as 27 tools `atlas.*` do servidor. Compatibilidade: `@cli_atlas/cli@4.0.1` ↔ servidor com 27 tools.
 
 No Hermes, o servidor chama-se `atlas`. Não instale a skill empacotada do repositório do servidor no lugar destas sete pastas.
 

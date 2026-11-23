@@ -82,7 +82,7 @@ test('2. Chamadas de bin/megabrain.js com --version, --help, status --json, call
   // --help, -h, help, no args
   const h1 = await runCliAsync(['--help']);
   assert.equal(h1.status, 0);
-  assert.match(h1.stdout, /MegaBrain CLI/);
+  assert.match(h1.stdout, /Atlas CLI/);
 
   const h2 = await runCliAsync(['-h']);
   assert.equal(h2.status, 0);

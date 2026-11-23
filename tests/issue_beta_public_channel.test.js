@@ -7,18 +7,14 @@ import assert from 'node:assert/strict';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const readme = readFileSync(join(root, 'README.md'), 'utf8');
 
-test('PUBLIC_CHANNEL_CONTRACT_NOT_LIVE', () => {
-  // Public channel contract asserts not published yet
-  assert.match(readme, /publicação pública ainda não existe/i);
-  assert.doesNotMatch(readme, /npm install -g @megabrain\/cli/);
-  assert.doesNotMatch(readme, /npm view/i);
-  assert.doesNotMatch(readme, /gh release/i);
-  assert.doesNotMatch(readme, /github\.com\/[^/]+\/[^/]+\/releases/i);
-
-  // Local tarball artifact from s22 preserved
-  assert.match(readme, /npm install -g \.\/dist\/megabrain-cli-4\.0\.0\.tgz/);
+test('PUBLIC_CHANNEL_NPM_CONTRACT', () => {
+  // Published npm package is the official channel; the tarball is not distributed.
+  assert.match(readme, /npm install -g @cli_atlas\/cli@4\.0\.1/);
+  assert.match(readme, /github\.com\/LuizKarlos\/atlas/);
+  assert.match(readme, /app\.atlascommand\.dev/);
   assert.match(readme, /Node >=18/);
-  assert.match(readme, /4\.0\.0/);
-  assert.match(readme, /sha256sum -c/);
+  assert.match(readme, /4\.0\.1/);
   assert.match(readme, /rollback/i);
+  assert.doesNotMatch(readme, /npm install -g \.\/dist\//);
+  assert.doesNotMatch(readme, /megabrain-cli-4\.0\.0\.tgz/);
 });

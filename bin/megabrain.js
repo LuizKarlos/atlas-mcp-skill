@@ -32,7 +32,7 @@ if (flags.version || command === 'version') {
 }
 
 if (flags.help || command === 'help' || !command) {
-  console.log(`MegaBrain CLI v${pkg.version}
+  console.log(`Atlas CLI v${pkg.version}
 
 Usage:
   megabrain <command> [options]
