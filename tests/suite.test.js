@@ -104,7 +104,7 @@ test('Semantic Skills Discovery Oracle', () => {
 
 const OWNER = ['Luiz', 'Karlos'].join('');
 const LEGACY_REPO = `${OWNER}/megabrain`;
-const OFFICIAL_LINK = new RegExp(`${OWNER}/atlas(?:-mcp-skill)?`, 'g');
+const OFFICIAL_LINK = new RegExp(`(?<![A-Za-z0-9_-])${OWNER}/atlas(?:-mcp-skill)?(?![A-Za-z0-9_-])`, 'g');
 
 // The personal name is allowed only inside the two official repositories.
 function privacyHits(text) {
@@ -118,7 +118,8 @@ test('Privacy scanner allows only official atlas links', () => {
   for (const text of [`${OWNER}/atlas`, `${OWNER}/atlas-mcp-skill`, `https://github.com/${OWNER}/atlas`]) {
     assert.deepEqual(privacyHits(text), [], text);
   }
-  for (const text of [OWNER, `${OWNER}/other-private-repo`, LEGACY_REPO, `owner ${OWNER} here`]) {
+  for (const text of [OWNER, `${OWNER}/other-private-repo`, LEGACY_REPO, `owner ${OWNER} here`,
+    `${OWNER}/atlas-private`, `${OWNER}/atlas-mcp-skill-private`, `prefix-${OWNER}/atlas-suffix`]) {
     assert.ok(privacyHits(text).length > 0, text);
   }
 });
